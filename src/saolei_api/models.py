@@ -2,8 +2,10 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
+
+from ._files import normalize_file_url
 
 Level = Literal["beg", "int", "exp"]
 
@@ -63,6 +65,12 @@ class VideoInfo(Video):
     signature: str | None
     metrics: VideoMetrics | None
     file_url: str | None
+
+    @field_validator("file_url")
+    @classmethod
+    def file_url_suffix(cls, value: str | None) -> str | None:
+        """Expose only YYYY/MM/DD/filename, including in model serialization."""
+        return normalize_file_url(value)
 
 
 class VideoListResponse(APIModel):

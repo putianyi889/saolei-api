@@ -1,4 +1,4 @@
-"""HTTPX-backed synchronous and asynchronous clients for documented public APIs only."""
+"""HTTPX clients for the documented public APIs and their recording files."""
 
 import asyncio
 import threading
@@ -11,6 +11,7 @@ import httpx
 from ._core import (
     BASE_URL,
     ModelT,
+    check_status,
     headers,
     ids_params,
     integer,
@@ -19,6 +20,7 @@ from ._core import (
     parse_response,
     video_params,
 )
+from ._files import VIDEO_FILE_BASE_URL, file_suffixes
 from .exceptions import TransportError
 from .models import (
     Level,
@@ -40,13 +42,17 @@ class Client:
         *,
         timeout: float = 30.0,
         min_interval: float = 2.0,
+        download_interval: float = 0.4,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         request_headers = headers(api_key)
         request_timeout = number(timeout, "timeout", positive=True)
         self._interval = number(min_interval, "min_interval")
+        self._download_interval = number(download_interval, "download_interval")
         self._last_request: float | None = None
+        self._last_download: float | None = None
         self._lock = threading.Lock()
+        self._download_lock = threading.Lock()
         self._http = httpx.Client(
             base_url=BASE_URL,
             headers=request_headers,
@@ -65,15 +71,24 @@ class Client:
     def close(self) -> None:
         self._http.close()
 
+    def _wait(self, *, download: bool = False) -> None:
+        lock = self._download_lock if download else self._lock
+        with lock:
+            last = self._last_download if download else self._last_request
+            interval = self._download_interval if download else self._interval
+            if last is not None:
+                wait = interval - (time.monotonic() - last)
+                if wait > 0:
+                    time.sleep(wait)
+            if download:
+                self._last_download = time.monotonic()
+            else:
+                self._last_request = time.monotonic()
+
     def _get(
         self, endpoint: str, model: type[ModelT], params: dict[str, str | int] | None = None
     ) -> ModelT:
-        with self._lock:
-            if self._last_request is not None:
-                wait = self._interval - (time.monotonic() - self._last_request)
-                if wait > 0:
-                    time.sleep(wait)
-            self._last_request = time.monotonic()
+        self._wait()
         try:
             response = self._http.get(endpoint, params=params)
         except httpx.RequestError:
@@ -101,6 +116,23 @@ class Client:
 
     def user_list(self, ids: int | Sequence[int]) -> UserListResponse:
         return self._get("user_list", UserListResponse, dict(ids_params(ids, 100)))
+
+    def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
+        """Return recording file contents in input order; stop on the first error."""
+        paths = file_suffixes(suffixes)
+        files: list[bytes] = []
+        for suffix in paths:
+            self._wait(download=True)
+            endpoint = f"videos/{suffix}"
+            try:
+                response = self._http.get(
+                    f"{VIDEO_FILE_BASE_URL}{suffix}", headers={"Accept": "application/octet-stream"}
+                )
+            except httpx.RequestError:
+                raise TransportError(f"Request failed for {endpoint}") from None
+            check_status(response, endpoint)
+            files.append(response.content)
+        return files
 
     def iter_videos(
         self,
@@ -135,13 +167,17 @@ class AsyncClient:
         *,
         timeout: float = 30.0,
         min_interval: float = 2.0,
+        download_interval: float = 0.4,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         request_headers = headers(api_key)
         request_timeout = number(timeout, "timeout", positive=True)
         self._interval = number(min_interval, "min_interval")
+        self._download_interval = number(download_interval, "download_interval")
         self._last_request: float | None = None
+        self._last_download: float | None = None
         self._lock = asyncio.Lock()
+        self._download_lock = asyncio.Lock()
         self._http = httpx.AsyncClient(
             base_url=BASE_URL,
             headers=request_headers,
@@ -160,15 +196,24 @@ class AsyncClient:
     async def aclose(self) -> None:
         await self._http.aclose()
 
+    async def _wait(self, *, download: bool = False) -> None:
+        lock = self._download_lock if download else self._lock
+        async with lock:
+            last = self._last_download if download else self._last_request
+            interval = self._download_interval if download else self._interval
+            if last is not None:
+                wait = interval - (time.monotonic() - last)
+                if wait > 0:
+                    await asyncio.sleep(wait)
+            if download:
+                self._last_download = time.monotonic()
+            else:
+                self._last_request = time.monotonic()
+
     async def _get(
         self, endpoint: str, model: type[ModelT], params: dict[str, str | int] | None = None
     ) -> ModelT:
-        async with self._lock:
-            if self._last_request is not None:
-                wait = self._interval - (time.monotonic() - self._last_request)
-                if wait > 0:
-                    await asyncio.sleep(wait)
-            self._last_request = time.monotonic()
+        await self._wait()
         try:
             response = await self._http.get(endpoint, params=params)
         except httpx.RequestError:
@@ -198,6 +243,23 @@ class AsyncClient:
 
     async def user_list(self, ids: int | Sequence[int]) -> UserListResponse:
         return await self._get("user_list", UserListResponse, dict(ids_params(ids, 100)))
+
+    async def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
+        """Download sequentially without blocking the event loop; preserve input order."""
+        paths = file_suffixes(suffixes)
+        files: list[bytes] = []
+        for suffix in paths:
+            await self._wait(download=True)
+            endpoint = f"videos/{suffix}"
+            try:
+                response = await self._http.get(
+                    f"{VIDEO_FILE_BASE_URL}{suffix}", headers={"Accept": "application/octet-stream"}
+                )
+            except httpx.RequestError:
+                raise TransportError(f"Request failed for {endpoint}") from None
+            check_status(response, endpoint)
+            files.append(response.content)
+        return files
 
     async def iter_videos(
         self,

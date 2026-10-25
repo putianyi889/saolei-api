@@ -39,7 +39,7 @@ def headers(api_key: str) -> dict[str, str]:
         raise ValueError(
             "api_key must contain only ASCII characters without whitespace or controls"
         )
-    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.1.0"}
+    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.2.0"}
 
 
 def ids_params(ids: int | Sequence[int], limit: int) -> dict[str, str]:
@@ -85,7 +85,7 @@ def retry_after(value: str | None) -> float | None:
             return None
 
 
-def parse_response(response: httpx.Response, endpoint: str, model: type[ModelT]) -> ModelT:
+def check_status(response: httpx.Response, endpoint: str) -> None:
     status = response.status_code
     if status in (401, 403):
         raise AuthenticationError(status, endpoint)
@@ -93,6 +93,10 @@ def parse_response(response: httpx.Response, endpoint: str, model: type[ModelT])
         raise RateLimitError(endpoint, retry_after(response.headers.get("Retry-After")))
     if not 200 <= status < 300:
         raise APIError(status, endpoint)
+
+
+def parse_response(response: httpx.Response, endpoint: str, model: type[ModelT]) -> ModelT:
+    check_status(response, endpoint)
     try:
         return model.model_validate_json(response.content)
     except ValidationError:

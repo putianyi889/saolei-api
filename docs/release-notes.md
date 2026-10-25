@@ -1,16 +1,19 @@
-# saolei-api v0.1.0
+# saolei-api v0.2.0
 
-Python 3.11+ client for all five documented saolei.wang public API endpoints:
-stats, video_list, video_info, user_info, and user_list.
+Adds batch recording-file downloads to the synchronous and asynchronous clients.
 
-- Reusable synchronous and asynchronous HTTPX clients with API key authentication.
-- Typed Pydantic models with snake_case attributes, upstream JSON aliases, and preserved extra fields.
-- Lazy video pagination, incremental cursors, batch-size validation, and a default 2-second interval.
-- Explicit authentication, rate limit, HTTP, transport, and response exceptions.
-- Chinese documentation, offline tests, and an opt-in bounded live verification script.
+- `VideoInfo.file_url` now returns only `YYYY/MM/DD/filename`; serialized `fileUrl` uses the same suffix.
+  This changes the v0.1.0 full-URL behavior. `None` remains unchanged.
+- `Client.download_videos(suffixes)` and `await AsyncClient.download_videos(suffixes)` return
+  recording contents as `list[bytes]` in input order, including duplicates.
+- File downloads have a separate 0.4-second default interval, shared across batches on one client.
+  Data API requests retain their 2-second default interval.
+- All suffixes are validated before the first request. Downloads stay on the official file origin,
+  stop on the first HTTP/network error, and use the existing exception hierarchy without retries.
+- The opt-in live verifier accepts `--download-videos` for at most four additional file requests.
 
 Install the wheel attached to this release with `python -m pip install <wheel-url>`.
 The source archive and documentation are included. `SHA256SUMS` covers all release artifacts.
 
 Data source: 扫雷网 saolei.wang. Bring your own API key, issued by the site administrator.
-Only the documented public API is supported. This package is a third-party client.
+Only the documented public API and its recording files are supported. This is a third-party client.
