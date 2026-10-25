@@ -1,0 +1,14 @@
+{
+  "generatedAt": 1792555559,
+  "stats": {
+    "userTotal": 34085,
+    "rankedTotal": 7371,
+    "videoTotal": 307494,
+    "videoCommentTotal": 54198,
+    "bbsTopicTotal": 2839,
+    "bbsReplyTotal": 17949,
+    "practiceTotal": 3163
+  },
+  "maxVideoId": 345159,
+  "maxUserId": 35488
+}

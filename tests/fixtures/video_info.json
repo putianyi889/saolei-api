@@ -1,0 +1,33 @@
+{
+  "generatedAt": 1792555559,
+  "items": [
+    {
+      "id": 328090,
+      "level": "exp",
+      "userId": 18290,
+      "userName": "鞠泽恩",
+      "hash": "6d58634fbe0987003dda90f4a68944a7",
+      "status": 20,
+      "uploadTime": 1753974216,
+      "reviewTime": 1754020972,
+      "realTime": 25100,
+      "board3bv": 123,
+      "3bvs": 4900,
+      "nf": false,
+      "fileUrl": "https://saolei.wang/videos/2025/07/31/6d58634fbe0987003dda90f4a68944a7.avf",
+      "software": "Arbiter",
+      "version": "0.52",
+      "signature": "Ju Ze En",
+      "metrics": {
+        "cl": 150,
+        "clLeft": 95,
+        "clRight": 22,
+        "clDouble": 33,
+        "ce": 124,
+        "path": 363,
+        "ioe": 0.82,
+        "stnb": 223.3
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "generatedAt": 1792555560,
+  "users": [
+    {
+      "id": 1,
+      "name": "张砷镓",
+      "englishName": "Zhang Shen Jia",
+      "sex": 1,
+      "area": "陕西",
+      "registeredAt": 1167758493,
+      "banned": false,
+      "scores": {
+        "begTime": 980,
+        "beg3bvs": 7289,
+        "intTime": 10310,
+        "int3bvs": 5301,
+        "expTime": 37820,
+        "exp3bvs": 4226,
+        "sumTime": 49110,
+        "sum3bvs": 16816
+      }
+    }
+  ]
+}

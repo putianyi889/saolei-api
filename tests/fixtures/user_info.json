@@ -1,0 +1,66 @@
+{
+  "generatedAt": 1792555560,
+  "users": [
+    {
+      "id": 1,
+      "name": "张砷镓",
+      "englishName": "Zhang Shen Jia",
+      "sex": 1,
+      "area": "陕西",
+      "registeredAt": 1167758493,
+      "banned": false,
+      "scores": {
+        "beg": {
+          "time": 980,
+          "timeVideoId": 154,
+          "3bvs": 7289,
+          "3bvsVideoId": 4807
+        },
+        "int": {
+          "time": 10310,
+          "timeVideoId": 15129,
+          "3bvs": 5301,
+          "3bvsVideoId": 9262
+        },
+        "exp": {
+          "time": 37820,
+          "timeVideoId": 9195,
+          "3bvs": 4226,
+          "3bvsVideoId": 8212
+        },
+        "sum": {
+          "time": 49110,
+          "3bvs": 16816
+        }
+      },
+      "scoresNf": {
+        "beg": {
+          "time": 980,
+          "timeVideoId": 154,
+          "3bvs": 5614,
+          "3bvsVideoId": 8079
+        },
+        "int": {
+          "time": 11540,
+          "timeVideoId": 9428,
+          "3bvs": 4601,
+          "3bvsVideoId": 12093
+        },
+        "exp": {
+          "time": 52220,
+          "timeVideoId": 10614,
+          "3bvs": 3720,
+          "3bvsVideoId": 16200
+        },
+        "sum": {
+          "time": 64740,
+          "3bvs": 13835
+        }
+      },
+      "signatures": [
+        "张砷镓",
+        "zsj"
+      ]
+    }
+  ]
+}

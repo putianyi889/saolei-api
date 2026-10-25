@@ -1,0 +1,24 @@
+{
+  "cursor": 0,
+  "nextCursor": 25,
+  "hasMore": true,
+  "size": 2,
+  "generatedAt": 1792555559,
+  "items": [
+    {
+      "id": 24,
+      "level": "beg",
+      "userId": 1,
+      "userName": "张砷镓",
+      "hash": "4cd9e3e261f76888be8d8919f06d0428",
+      "uploadTime": 1167978360,
+      "reviewTime": 1167978403,
+      "realTime": 1110,
+      "board3bv": 4,
+      "3bvs": -3604,
+      "nf": true,
+      "software": "Clone",
+      "version": "0.97"
+    }
+  ]
+}
