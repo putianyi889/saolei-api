@@ -34,6 +34,7 @@ def test_aliases_and_units(payloads):
     assert video.board_3bv == 4
     assert video.real_time == 1110
     assert video.three_bvs == -3604
+    assert video.status == 20
     user = UserInfoResponse.model_validate(payloads["user_info"]).users[0]
     assert user.scores.beg.time_video_id == 154
     assert user.scores.beg.three_bvs == 7289

@@ -104,9 +104,14 @@ class Client:
         cursor: int | None = None,
         since: int | None = None,
         level: Level | None = None,
+        player_id: int | None = None,
         size: int = 200,
     ) -> VideoListResponse:
-        return self._get("video_list", VideoListResponse, video_params(cursor, since, level, size))
+        return self._get(
+            "video_list",
+            VideoListResponse,
+            video_params(cursor, since, level, size, player_id=player_id),
+        )
 
     def video_info(self, ids: int | Sequence[int]) -> VideoInfoResponse:
         return self._get("video_info", VideoInfoResponse, dict(ids_params(ids, 50)))
@@ -140,6 +145,7 @@ class Client:
         cursor: int | None = None,
         since: int | None = None,
         level: Level | None = None,
+        player_id: int | None = None,
         size: int = 200,
         max_pages: int | None = None,
     ) -> Iterator[Video]:
@@ -148,7 +154,9 @@ class Client:
             integer(max_pages, "max_pages", 1)
         pages = 0
         while True:
-            page = self.video_list(cursor=cursor, since=since, level=level, size=size)
+            page = self.video_list(
+                cursor=cursor, since=since, level=level, player_id=player_id, size=size
+            )
             # Check before yielding so a broken page cannot silently loop or duplicate data.
             following = next_cursor(page, cursor) if page.has_more else None
             yield from page.items
@@ -229,10 +237,13 @@ class AsyncClient:
         cursor: int | None = None,
         since: int | None = None,
         level: Level | None = None,
+        player_id: int | None = None,
         size: int = 200,
     ) -> VideoListResponse:
         return await self._get(
-            "video_list", VideoListResponse, video_params(cursor, since, level, size)
+            "video_list",
+            VideoListResponse,
+            video_params(cursor, since, level, size, player_id=player_id),
         )
 
     async def video_info(self, ids: int | Sequence[int]) -> VideoInfoResponse:
@@ -267,6 +278,7 @@ class AsyncClient:
         cursor: int | None = None,
         since: int | None = None,
         level: Level | None = None,
+        player_id: int | None = None,
         size: int = 200,
         max_pages: int | None = None,
     ) -> AsyncIterator[Video]:
@@ -274,7 +286,9 @@ class AsyncClient:
             integer(max_pages, "max_pages", 1)
         pages = 0
         while True:
-            page = await self.video_list(cursor=cursor, since=since, level=level, size=size)
+            page = await self.video_list(
+                cursor=cursor, since=since, level=level, player_id=player_id, size=size
+            )
             following = next_cursor(page, cursor) if page.has_more else None
             for video in page.items:
                 yield video

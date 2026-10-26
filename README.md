@@ -12,13 +12,13 @@ Python 3.11+，包名 `saolei-api`，导入名 `saolei_api`。
 从 [GitHub Release](https://github.com/putianyi889/saolei-api/releases/latest) 安装：
 
 ```sh
-python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.2.0/saolei_api-0.2.0-py3-none-any.whl"
+python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.3.0/saolei_api-0.3.0-py3-none-any.whl"
 ```
 
 也可以从源码安装：
 
 ```sh
-python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.2.0"
+python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.3.0"
 ```
 
 本项目发布到 GitHub Releases，尚未发布到 PyPI。
@@ -39,9 +39,9 @@ with Client(os.environ["SAOLEI_API_KEY"]) as api:
     user = api.user_info(1).users[0]
     print(user.name, user.scores.exp.time)  # 毫秒
 
-    videos = api.video_list(level="exp", size=10)
+    videos = api.video_list(player_id=1, level="exp", size=10)
     for video in videos.items:
-        print(video.id, video.real_time, video.three_bvs)
+        print(video.id, video.status, video.real_time, video.three_bvs)
 
     detail = api.video_info(328090).items[0]
     print(detail.file_url)  # 2025/07/31/6d58634fbe0987003dda90f4a68944a7.avf
@@ -70,7 +70,7 @@ asyncio.run(main())
 | Python 方法（同步 / 异步同名） | 官方 GET 接口 | 返回模型 |
 | --- | --- | --- |
 | `stats()` | `/api/public/v1/stats` | `StatsResponse` |
-| `video_list(cursor=None, since=None, level=None, size=200)` | `/api/public/v1/video_list` | `VideoListResponse` |
+| `video_list(cursor=None, since=None, level=None, player_id=None, size=200)` | `/api/public/v1/video_list` | `VideoListResponse` |
 | `video_info(ids)` | `/api/public/v1/video_info` | `VideoInfoResponse` |
 | `user_info(ids)` | `/api/public/v1/user_info` | `UserInfoResponse` |
 | `user_list(ids)` | `/api/public/v1/user_list` | `UserListResponse` |
@@ -78,13 +78,17 @@ asyncio.run(main())
 `ids` 接受单个正整数或整数序列。录像详情 / 玩家详情每次最多 50 个 ID，
 玩家列表最多 100 个；不存在或不可公开的数据以服务端返回为准，不保证每个 ID 都有对应结果。
 
+录像列表现包含全部审核状态，`video.status` 为 `0`（已屏蔽）、`10`（待审）或 `20`（已通过）。
+客户端保留服务端结果；只需已通过录像时可自行筛选 `video.status == 20`。
+`player_id` 为正整数，限制返回指定玩家的录像；省略时不按玩家筛选。
+
 ## 分页与增量
 
 ```python
 with Client(os.environ["SAOLEI_API_KEY"]) as api:
     # 惰性获取，最多两页。省略 max_pages 会迭代到服务端 hasMore=false。
-    for video in api.iter_videos(since=1790000000, size=200, max_pages=2):
-        print(video.id)
+    for video in api.iter_videos(player_id=1, since=1790000000, size=200, max_pages=2):
+        print(video.id, video.status)
 
     # 需要持久化断点时，直接获取分页响应。
     page = api.video_list(cursor=0, size=200)
@@ -93,7 +97,7 @@ with Client(os.environ["SAOLEI_API_KEY"]) as api:
 
 异步分页使用 `async for video in api.iter_videos(...)`。
 `since` 为 Unix 秒；同时传入 `cursor` 时，服务端以 `cursor` 为准。
-迭代器首次请求使用给定筛选条件，后续仅保留游标、难度与页大小。
+迭代器首次请求使用给定筛选条件，后续保留游标、玩家、难度与页大小。
 全量同步前可用 `stats().max_video_id` / `max_user_id` 确定范围，避免试探 ID。
 
 ## 录像文件批量下载
@@ -156,11 +160,11 @@ python -m twine check dist/*
 
 离线测试使用 HTTPX MockTransport，不需要真实 key，不访问网站。
 设置 `SAOLEI_API_KEY` 后，可运行 `python tools/verify_live.py`：
-最多 8 次只读 API 请求，验证全部接口、两页分页和异步访问。CI 不运行真实请求。
+最多 10 次只读 API 请求，验证全部接口、玩家筛选、两页分页、最新录像状态和异步访问。CI 不运行真实请求。
 增加 `--download-videos` 可同时验证同步 / 异步批量下载，最多再下载 4 个文件。
 这是纯 Python 项目，无 ESLint 或 Cypress 测试。
 
-推送与包版本一致的标签（如 `v0.2.0`）会运行完整 CI，
+推送与包版本一致的标签（如 `v0.3.0`）会运行完整 CI，
 随后将 wheel、sdist、文档压缩包和 `SHA256SUMS` 发布到 GitHub Release。
 
 ## 数据来源与许可

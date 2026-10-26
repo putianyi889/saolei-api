@@ -39,6 +39,7 @@ class Video(APIModel):
     user_id: int
     user_name: str
     hash: str
+    status: int
     upload_time: int
     review_time: int
     real_time: int
@@ -61,7 +62,6 @@ class VideoMetrics(APIModel):
 
 
 class VideoInfo(Video):
-    status: int
     signature: str | None
     metrics: VideoMetrics | None
     file_url: str | None

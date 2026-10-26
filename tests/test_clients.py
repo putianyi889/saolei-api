@@ -59,7 +59,7 @@ async def api(request):
     "endpoint,kwargs",
     [
         ("stats", {}),
-        ("video_list", {"cursor": 0, "since": 123, "level": "exp", "size": 1000}),
+        ("video_list", {"cursor": 0, "since": 123, "level": "exp", "player_id": 1, "size": 1000}),
         ("video_info", {"ids": [1, 2]}),
         ("user_info", {"ids": 1}),
         ("user_list", {"ids": [1, 2]}),
@@ -76,12 +76,13 @@ async def test_endpoint_contract(api, payloads, endpoint, kwargs):
     assert request.method == "GET"
     assert request.headers["X-Api-Key"] == "sk-test-only"
     assert request.headers["Accept"] == "application/json"
-    assert request.headers["User-Agent"] == "saolei-api/0.2.0"
+    assert request.headers["User-Agent"] == "saolei-api/0.3.0"
     if endpoint == "video_list":
         assert dict(request.url.params) == {
             "cursor": "0",
             "since": "123",
             "level": "exp",
+            "player_id": "1",
             "size": "1000",
         }
     elif endpoint != "stats":
@@ -137,6 +138,11 @@ async def test_invalid_ids_never_send_a_request(api, method, ids, error):
         ({"size": 0}, ValueError),
         ({"size": 1001}, ValueError),
         ({"size": 2.5}, TypeError),
+        ({"player_id": 0}, ValueError),
+        ({"player_id": -1}, ValueError),
+        ({"player_id": True}, TypeError),
+        ({"player_id": "1"}, TypeError),
+        ({"player_id": 1.5}, TypeError),
     ],
 )
 async def test_invalid_video_filters_never_send_a_request(api, kwargs, error):
@@ -204,12 +210,45 @@ async def test_lazy_pagination_and_since_transition(api, video_page):
             httpx.Response(200, json=video_page(cursor=25, next_cursor=30, video_id=30)),
         ]
     )
-    generator = api.client.iter_videos(since=123, size=1, level="beg")
+    generator = api.client.iter_videos(since=123, size=1, level="beg", player_id=1)
     assert not api.requests
     videos = [v async for v in generator] if api.asynchronous else list(generator)
     assert [v.id for v in videos] == [24, 30]
-    assert dict(api.requests[0].url.params) == {"since": "123", "size": "1", "level": "beg"}
-    assert dict(api.requests[1].url.params) == {"cursor": "25", "size": "1", "level": "beg"}
+    assert dict(api.requests[0].url.params) == {
+        "since": "123",
+        "size": "1",
+        "level": "beg",
+        "player_id": "1",
+    }
+    assert dict(api.requests[1].url.params) == {
+        "cursor": "25",
+        "size": "1",
+        "level": "beg",
+        "player_id": "1",
+    }
+
+
+@pytest.mark.parametrize("iterate", [False, True], ids=["page", "iterator"])
+async def test_video_list_preserves_all_review_statuses(api, video_page, iterate):
+    payload = video_page()
+    item = payload["items"][0]
+    payload["items"] = [
+        {**item, "id": i + 1, "status": status} for i, status in enumerate([0, 10, 20])
+    ]
+    api.responses.append(httpx.Response(200, json=payload))
+    if iterate:
+        videos = await api.videos(player_id=1)
+    else:
+        videos = (await api.call("video_list", player_id=1)).items
+    assert [video.status for video in videos] == [0, 10, 20]
+    assert [video.model_dump()["status"] for video in videos] == [0, 10, 20]
+
+
+@pytest.mark.parametrize("player_id,error", [(0, ValueError), (True, TypeError), (1.5, TypeError)])
+async def test_invalid_player_filter_in_iterator_never_sends(api, player_id, error):
+    with pytest.raises(error):
+        await api.videos(player_id=player_id)
+    assert not api.requests
 
 
 async def test_max_pages(api, video_page):

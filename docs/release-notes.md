@@ -1,16 +1,15 @@
-# saolei-api v0.2.0
+# saolei-api v0.3.0
 
-Adds batch recording-file downloads to the synchronous and asynchronous clients.
+Updates the client to match the official API documentation checked on 2026-10-26.
 
-- `VideoInfo.file_url` now returns only `YYYY/MM/DD/filename`; serialized `fileUrl` uses the same suffix.
-  This changes the v0.1.0 full-URL behavior. `None` remains unchanged.
-- `Client.download_videos(suffixes)` and `await AsyncClient.download_videos(suffixes)` return
-  recording contents as `list[bytes]` in input order, including duplicates.
-- File downloads have a separate 0.4-second default interval, shared across batches on one client.
-  Data API requests retain their 2-second default interval.
-- All suffixes are validated before the first request. Downloads stay on the official file origin,
-  stop on the first HTTP/network error, and use the existing exception hierarchy without retries.
-- The opt-in live verifier accepts `--download-videos` for at most four additional file requests.
+- `video_list(player_id=...)` and `iter_videos(player_id=...)` support the new positive-integer
+  player filter in both synchronous and asynchronous clients, preserving it across all pages.
+- `Video.status` is now a required typed field inherited by `VideoInfo`.
+  The upstream list includes all review states: 0 (blocked), 10 (pending), and 20 (approved).
+  Applications requiring only approved recordings should filter `video.status == 20`.
+- Updated official fixtures, parameter/status regression tests, documentation, and live verification.
+  The bounded verifier checks player filtering, cursor pagination, and recent recording schemas.
+- Recording URL suffixes and ordered batch file downloads remain available.
 
 Install the wheel attached to this release with `python -m pip install <wheel-url>`.
 The source archive and documentation are included. `SHA256SUMS` covers all release artifacts.

@@ -39,7 +39,7 @@ def headers(api_key: str) -> dict[str, str]:
         raise ValueError(
             "api_key must contain only ASCII characters without whitespace or controls"
         )
-    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.2.0"}
+    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.3.0"}
 
 
 def ids_params(ids: int | Sequence[int], limit: int) -> dict[str, str]:
@@ -55,13 +55,20 @@ def ids_params(ids: int | Sequence[int], limit: int) -> dict[str, str]:
 
 
 def video_params(
-    cursor: int | None, since: int | None, level: Level | None, size: int
+    cursor: int | None,
+    since: int | None,
+    level: Level | None,
+    size: int,
+    *,
+    player_id: int | None = None,
 ) -> dict[str, str | int]:
     params: dict[str, str | int] = {"size": integer(size, "size", 1, 1000)}
     if cursor is not None:
         params["cursor"] = integer(cursor, "cursor")
     if since is not None:
         params["since"] = integer(since, "since")
+    if player_id is not None:
+        params["player_id"] = integer(player_id, "player_id", 1)
     if level is not None:
         if level not in ("beg", "int", "exp"):
             raise ValueError("level must be 'beg', 'int', or 'exp'")

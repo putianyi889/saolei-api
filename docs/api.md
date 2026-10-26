@@ -1,6 +1,6 @@
 # API 参考
 
-实现依据：[扫雷网官方开放 API 文档](https://saolei.wang/page/api)，核对日期 2026-10-25。
+实现依据：[扫雷网官方开放 API 文档](https://saolei.wang/page/api)，核对日期 2026-10-26。
 5 个公开 GET 接口均使用 `X-Api-Key`，根地址为 `https://saolei.wang/api/public/v1/`。
 
 ## 客户端
@@ -36,21 +36,23 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 | 方法 | 参数 | 响应 |
 | --- | --- | --- |
 | `stats()` | 无 | `StatsResponse` |
-| `video_list(*, cursor=None, since=None, level=None, size=200)` | `cursor`、`since` 为非负整数；`level` 为 `beg` / `int` / `exp`；`size` 为 1–1000 | `VideoListResponse` |
+| `video_list(*, cursor=None, since=None, level=None, player_id=None, size=200)` | `cursor`、`since` 为非负整数；`level` 为 `beg` / `int` / `exp`；`player_id` 为正整数；`size` 为 1–1000 | `VideoListResponse` |
 | `video_info(ids)` | 正整数或 1–50 个正整数的序列 | `VideoInfoResponse` |
 | `user_info(ids)` | 正整数或 1–50 个正整数的序列 | `UserInfoResponse` |
 | `user_list(ids)` | 正整数或 1–100 个正整数的序列 | `UserListResponse` |
-| `iter_videos(*, cursor=None, since=None, level=None, size=200, max_pages=None)` | 同 `video_list`，`max_pages` 为正整数或 `None` | `Iterator[Video]` / `AsyncIterator[Video]` |
+| `iter_videos(*, cursor=None, since=None, level=None, player_id=None, size=200, max_pages=None)` | 同 `video_list`，`max_pages` 为正整数或 `None` | `Iterator[Video]` / `AsyncIterator[Video]` |
 | `download_videos(suffixes)` | `YYYY/MM/DD/filename` 字符串序列 | `list[bytes]` |
 
 无效参数在发送请求前抛出 `ValueError` / `TypeError`。布尔值不作为整数 ID 或游标接受。
 批量参数不自动分组或试探缺失 ID，每次方法调用发送一个请求。
 `download_videos` 每个文件发送一个 GET 请求；完整行为见下方批量下载说明。
 
-`video_list` 返回审核通过（status=20）的胜利录像，按 ID 升序排列。
+`video_list` 按 ID 升序返回全部审核状态的录像：`status=0` 已屏蔽、`10` 待审、`20` 已通过。
+客户端不按审核状态过滤，调用方如需已通过录像可筛选 `video.status == 20`。
+`player_id` 限定玩家 ID，必须是大于 0 的整数；省略时不限制玩家，不能传入布尔值。
 首次可不传游标；`since` 过滤早于指定 Unix 秒上传的录像。
 两者同时提供时，官方定义 `cursor` 优先。
-`iter_videos` 在后续请求中使用服务端 `nextCursor`，去掉 `since`，保留 `level` 和 `size`。
+`iter_videos` 在后续请求中使用服务端 `nextCursor`，去掉 `since`，保留 `player_id`、`level` 和 `size`。
 服务端 `hasMore=false` 或达到 `max_pages` 时结束；停止消费即可停止请求。
 `hasMore=true` 却未推进游标时抛出 `ResponseError`，防止无限循环。
 分页不是数据库快照，数据可能在两次调用间改变。
@@ -73,6 +75,7 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 | `3bvs` | `three_bvs` | 官方整数形式的 3BVS，原样保留 |
 | `3bvsVideoId` | `three_bvs_video_id` | 该成绩关联的录像 ID |
 | `scoresNf` | `scores_nf` | NF 成绩体系 |
+| `status` | `status` | 录像列表 / 详情共有的审核状态整数，0=已屏蔽、10=待审、20=已通过 |
 | `fileUrl` | `file_url` | 录像文件的 `YYYY/MM/DD/filename` 后缀 |
 | `beg3bvs` / `sum3bvs` 等 | `beg_3bvs` / `sum_3bvs` 等 | 玩家简表的 3BVS 成绩 |
 
@@ -82,7 +85,8 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 - `UserInfoResponse`：`generated_at`、`users: list[UserInfo]`。
 - `UserListResponse`：`generated_at`、`users: list[UserSummary]`。
 
-`VideoInfo` 在 `Video` 上增加 `status`、`signature`、`metrics`、`file_url`。
+`Video` 和 `VideoInfo` 都包含必需的 `status: int`；未知状态整数也会保留。
+`VideoInfo` 在 `Video` 上增加 `signature`、`metrics`、`file_url`。
 无回放指标时 `metrics=None`；指标中的 `cl`、`cl_left`、`cl_right`、`cl_double`、`ce`、
 `path`、`ioe`、`stnb` 均可为空。`signature` / `file_url` 也接受 `None`。
 其他未知指标仍会在模型和 JSON 导出中保留。
@@ -182,5 +186,6 @@ except SaoleiError as exc:
 引用数据请标注 **扫雷网 saolei.wang**；API key 应通过环境变量或应用秘密管理传入。
 
 离线样本位于 `tests/fixtures/`，来自官方文档示例，数据来源为扫雷网。
-真实验证工具为 `tools/verify_live.py`，只运行有限请求，不执行全量抓取。
+真实验证工具为 `tools/verify_live.py`，最多 10 次只读 API 请求，包含玩家筛选、分页和最近录像状态验证。
+列表中的已屏蔽录像不会传给省略这些录像的详情接口，必要时使用官方示例 ID 验证详情，不执行 ID 扫描。
 增加 `--download-videos` 可额外验证最多 4 次录像文件下载（同步 / 异步各最多 2 个）。
