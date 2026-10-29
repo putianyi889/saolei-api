@@ -13,6 +13,9 @@ from .models import (
     APIModel,
     Level,
     LevelScore,
+    Post,
+    PostInfoResponse,
+    PostSearchResponse,
     Scores,
     SiteStats,
     StatsResponse,
@@ -29,7 +32,7 @@ from .models import (
     VideoMetrics,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "APIError",
@@ -39,6 +42,9 @@ __all__ = [
     "Client",
     "Level",
     "LevelScore",
+    "Post",
+    "PostInfoResponse",
+    "PostSearchResponse",
     "RateLimitError",
     "ResponseError",
     "SaoleiError",

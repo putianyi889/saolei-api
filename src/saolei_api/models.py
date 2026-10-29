@@ -1,4 +1,4 @@
-"""Models for the five documented public v1 endpoints. Values retain upstream units."""
+"""Models for the documented public v1 endpoints. Values retain upstream units."""
 
 from typing import Literal
 
@@ -149,3 +149,36 @@ class UserInfoResponse(APIModel):
 class UserListResponse(APIModel):
     generated_at: int
     users: list[UserSummary]
+
+
+class Post(APIModel):
+    """Public post metadata; the API does not provide post bodies or replies."""
+
+    id: int
+    title: str
+    board: int
+    user_id: int
+    user_name: str
+    post_time: int
+    update_time: int
+    last_reply_time: int
+    replies: int
+    clicks: int
+    pinned: bool
+    nice: bool
+    locked: bool
+
+
+class PostInfoResponse(APIModel):
+    generated_at: int
+    items: list[Post]
+
+
+class PostSearchResponse(APIModel):
+    cursor: int
+    next_cursor: int | None
+    has_more: bool
+    keyword: str
+    size: int
+    generated_at: int
+    items: list[Post]

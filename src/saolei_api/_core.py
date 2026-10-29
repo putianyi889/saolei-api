@@ -10,7 +10,7 @@ import httpx
 from pydantic import ValidationError
 
 from .exceptions import APIError, AuthenticationError, RateLimitError, ResponseError
-from .models import APIModel, Level, VideoListResponse
+from .models import APIModel, Level, PostSearchResponse, VideoListResponse
 
 BASE_URL = "https://saolei.wang/api/public/v1/"
 ModelT = TypeVar("ModelT", bound=APIModel)
@@ -39,7 +39,7 @@ def headers(api_key: str) -> dict[str, str]:
         raise ValueError(
             "api_key must contain only ASCII characters without whitespace or controls"
         )
-    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.3.0"}
+    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.4.0"}
 
 
 def ids_params(ids: int | Sequence[int], limit: int) -> dict[str, str]:
@@ -92,6 +92,17 @@ def retry_after(value: str | None) -> float | None:
             return None
 
 
+def post_search_params(keyword: str, cursor: int | None) -> dict[str, str | int]:
+    if not isinstance(keyword, str):
+        raise TypeError("keyword must be a string")
+    if not keyword.strip() or len(keyword) > 30:
+        raise ValueError("keyword must contain between 1 and 30 characters and not be blank")
+    params: dict[str, str | int] = {"keyword": keyword}
+    if cursor is not None:
+        params["cursor"] = integer(cursor, "cursor")
+    return params
+
+
 def check_status(response: httpx.Response, endpoint: str) -> None:
     status = response.status_code
     if status in (401, 403):
@@ -115,3 +126,17 @@ def next_cursor(page: VideoListResponse, requested_cursor: int | None) -> int:
     if page.next_cursor <= previous:
         raise ResponseError("video_list returned hasMore=true without an advancing cursor")
     return page.next_cursor
+
+
+def next_post_cursor(page: PostSearchResponse, requested_cursor: int | None) -> int:
+    # Zero denotes the first/newest page; subsequent cursors must decrease.
+    cursors = [
+        value for value in (page.cursor, requested_cursor) if value is not None and value > 0
+    ]
+    previous = min(cursors) if cursors else None
+    following = page.next_cursor
+    if following is None or following <= 0 or (previous is not None and following >= previous):
+        raise ResponseError(
+            "post_search returned hasMore=true without a decreasing positive cursor"
+        )
+    return following

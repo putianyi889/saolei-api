@@ -1,7 +1,7 @@
 # API 参考
 
-实现依据：[扫雷网官方开放 API 文档](https://saolei.wang/page/api)，核对日期 2026-10-26。
-5 个公开 GET 接口均使用 `X-Api-Key`，根地址为 `https://saolei.wang/api/public/v1/`。
+实现依据：[扫雷网官方开放 API 文档](https://saolei.wang/page/api)，核对日期 2026-10-29。
+7 个公开 GET 接口均使用 `X-Api-Key`，根地址为 `https://saolei.wang/api/public/v1/`。
 
 ## 客户端
 
@@ -31,7 +31,7 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 
 ## 方法与参数
 
-异步版本的请求方法都需要 `await`；`iter_videos` 使用 `async for`。
+异步版本的请求方法都需要 `await`；`iter_videos` 和 `iter_posts` 使用 `async for`。
 
 | 方法 | 参数 | 响应 |
 | --- | --- | --- |
@@ -40,6 +40,9 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 | `video_info(ids)` | 正整数或 1–50 个正整数的序列 | `VideoInfoResponse` |
 | `user_info(ids)` | 正整数或 1–50 个正整数的序列 | `UserInfoResponse` |
 | `user_list(ids)` | 正整数或 1–100 个正整数的序列 | `UserListResponse` |
+| `post_info(ids)` | 正整数或 1–50 个正整数的序列 | `PostInfoResponse` |
+| `post_search(keyword, *, cursor=None)` | 1–30 字非空关键词；`cursor` 为非负整数或 `None` | `PostSearchResponse` |
+| `iter_posts(keyword, *, cursor=None, max_pages=None)` | 同 `post_search`；`max_pages` 为正整数或 `None` | `Iterator[Post]` / `AsyncIterator[Post]` |
 | `iter_videos(*, cursor=None, since=None, level=None, player_id=None, size=200, max_pages=None)` | 同 `video_list`，`max_pages` 为正整数或 `None` | `Iterator[Video]` / `AsyncIterator[Video]` |
 | `download_videos(suffixes)` | `YYYY/MM/DD/filename` 字符串序列 | `list[bytes]` |
 
@@ -59,6 +62,33 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 
 `video_info` 可包含 status=10（待审）和 status=20（已通过）的公开录像；禁用录像不返回。
 用户和录像批量响应不保证与输入 ID 的数量、顺序一致，请按返回对象的 `id` 建立映射。
+
+## 帖子接口
+
+`post_info` 按 ID 返回正常帖的公开基本信息，最多 50 个 ID；已删除帖和待审帖不返回。
+响应为 `PostInfoResponse(generated_at, items: list[Post])`，缺失 ID 不生成占位对象。
+
+`post_search` 只对帖子标题作包含匹配，不搜索正文、回复或作者名。
+`keyword` 必须为 1–30 字的非空字符串，不能全为空白；客户端原样传递字符串，
+`%`、`_` 等通配符由官方接口按字面处理。`cursor` 首次可省略或传 0。
+每页固定 20 条，没有 `size` 参数；结果按 ID 倒序排列，后续传入服务端 `next_cursor`。
+`has_more=False` 时 `next_cursor=None`，搜索无结果时 `items=[]`。
+
+`iter_posts` 惰性请求，持续传递同一个关键词；`has_more=False`、达到 `max_pages`
+或调用方停止消费时结束。后续游标必须为正且严格递减，
+服务端在 `has_more=True` 时返回空、重复或增大的游标会触发 `ResponseError`，防止重复翻页。
+首次响应的 0 游标表示从最新帖子开始，不参与递减比较。
+这些方法复用现有连接、2 秒数据请求间隔和异常类型。
+
+```python
+posts = api.post_info([362, 177])
+page = api.post_search("扫雷")
+for post in api.iter_posts("扫雷", max_pages=2):
+    print(post.id, post.title, post.update_time, post.last_reply_time)
+```
+
+帖子接口不提供正文或回复内容。正文请引导用户访问官方 `https://saolei.wang/bbs/{id}`，
+本包不会请求或解析该网页。
 
 ## 模型
 
@@ -84,6 +114,8 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 - `VideoInfoResponse`：`generated_at`、`items: list[VideoInfo]`。
 - `UserInfoResponse`：`generated_at`、`users: list[UserInfo]`。
 - `UserListResponse`：`generated_at`、`users: list[UserSummary]`。
+- `PostInfoResponse`：`generated_at`、`items: list[Post]`。
+- `PostSearchResponse`：`cursor`、`next_cursor: int | None`、`has_more`、`keyword`、`size`、`generated_at`、`items: list[Post]`。
 
 `Video` 和 `VideoInfo` 都包含必需的 `status: int`；未知状态整数也会保留。
 `VideoInfo` 在 `Video` 上增加 `signature`、`metrics`、`file_url`。
@@ -101,6 +133,13 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 `LevelScore` 包含 `time`、`time_video_id`、`three_bvs`、`three_bvs_video_id`；
 总成绩不包含录像 ID。`UserSummary.scores: SummaryScores` 是官方简表的 8 项平铺成绩。
 录像 ID 为 0 时表示没有关联录像；`banned=True` 为官方公开的封禁标志。
+
+`Post` 的字段为 `id`、`title`、`board`、`user_id`、`user_name`、`post_time`、
+`update_time`、`last_reply_time`、`replies`、`clicks`、`pinned`、`nice`、`locked`。
+`board` 为分类整数：0=公告、1=技术、2=杂谈、3=问答；未知分类整数仍会保留。
+三个时间字段均为 Unix 秒：`post_time` 是发布时间，`update_time` 是最后编辑或管理操作时间，
+`last_reply_time` 是最后回复时间，三者不可混用。`replies` 为评论数，`clicks` 为点击数，
+`pinned` / `nice` / `locked` 分别表示置顶 / 加精 / 锁定。
 
 ### 单位
 
@@ -181,11 +220,12 @@ except SaoleiError as exc:
 ## 使用边界
 
 官方上限为每合作方 60 次/分钟，建议全量同步低于 30 次/分钟、增量同步每小时一次。
-本包只访问上述 5 个 API 和官方文档提供的录像文件，不使用网页、登录接口或未公开端点。
+本包只访问上述 7 个 API 和官方文档提供的录像文件，不使用网页、登录接口或未公开端点。
 `file_url` 后缀由 API 提供，`download_videos` 遵守单实例默认下载间隔；全局额度由调用方协调。
 引用数据请标注 **扫雷网 saolei.wang**；API key 应通过环境变量或应用秘密管理传入。
 
 离线样本位于 `tests/fixtures/`，来自官方文档示例，数据来源为扫雷网。
-真实验证工具为 `tools/verify_live.py`，最多 10 次只读 API 请求，包含玩家筛选、分页和最近录像状态验证。
+真实验证工具为 `tools/verify_live.py`，最多 18 次只读 API 请求，包含玩家筛选、录像 / 帖子分页、
+帖子搜索结束游标和最近录像状态验证。
 列表中的已屏蔽录像不会传给省略这些录像的详情接口，必要时使用官方示例 ID 验证详情，不执行 ID 扫描。
 增加 `--download-videos` 可额外验证最多 4 次录像文件下载（同步 / 异步各最多 2 个）。

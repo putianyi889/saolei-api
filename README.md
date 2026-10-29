@@ -3,8 +3,8 @@
 [![CI](https://github.com/putianyi889/saolei-api/actions/workflows/ci.yml/badge.svg)](https://github.com/putianyi889/saolei-api/actions/workflows/ci.yml)
 
 扫雷网 [saolei.wang](https://saolei.wang/) 官方开放 API 的 Python 客户端。
-完整支持 [官方文档](https://saolei.wang/page/api) 中的 5 个只读接口，
-提供同步 / 异步调用、Pydantic 类型模型、录像分页迭代、录像文件批量下载和请求节流。
+完整支持 [官方文档](https://saolei.wang/page/api) 中的 7 个只读接口，
+提供同步 / 异步调用、Pydantic 类型模型、录像与帖子搜索分页、录像文件批量下载和请求节流。
 Python 3.11+，包名 `saolei-api`，导入名 `saolei_api`。
 
 ## 安装
@@ -12,13 +12,13 @@ Python 3.11+，包名 `saolei-api`，导入名 `saolei_api`。
 从 [GitHub Release](https://github.com/putianyi889/saolei-api/releases/latest) 安装：
 
 ```sh
-python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.3.0/saolei_api-0.3.0-py3-none-any.whl"
+python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.4.0/saolei_api-0.4.0-py3-none-any.whl"
 ```
 
 也可以从源码安装：
 
 ```sh
-python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.3.0"
+python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.4.0"
 ```
 
 本项目发布到 GitHub Releases，尚未发布到 PyPI。
@@ -74,8 +74,10 @@ asyncio.run(main())
 | `video_info(ids)` | `/api/public/v1/video_info` | `VideoInfoResponse` |
 | `user_info(ids)` | `/api/public/v1/user_info` | `UserInfoResponse` |
 | `user_list(ids)` | `/api/public/v1/user_list` | `UserListResponse` |
+| `post_info(ids)` | `/api/public/v1/post_info` | `PostInfoResponse` |
+| `post_search(keyword, cursor=None)` | `/api/public/v1/post_search` | `PostSearchResponse` |
 
-`ids` 接受单个正整数或整数序列。录像详情 / 玩家详情每次最多 50 个 ID，
+`ids` 接受单个正整数或整数序列。录像详情 / 玩家详情 / 帖子查询每次最多 50 个 ID，
 玩家列表最多 100 个；不存在或不可公开的数据以服务端返回为准，不保证每个 ID 都有对应结果。
 
 录像列表现包含全部审核状态，`video.status` 为 `0`（已屏蔽）、`10`（待审）或 `20`（已通过）。
@@ -99,6 +101,28 @@ with Client(os.environ["SAOLEI_API_KEY"]) as api:
 `since` 为 Unix 秒；同时传入 `cursor` 时，服务端以 `cursor` 为准。
 迭代器首次请求使用给定筛选条件，后续保留游标、玩家、难度与页大小。
 全量同步前可用 `stats().max_video_id` / `max_user_id` 确定范围，避免试探 ID。
+
+## 帖子查询与标题搜索
+
+```python
+with Client(os.environ["SAOLEI_API_KEY"]) as api:
+    posts = api.post_info([362, 177])
+    for post in posts.items:
+        print(post.id, post.title, post.replies, post.last_reply_time)
+
+    page = api.post_search("扫雷")  # 每页固定 20 条，按 ID 倒序
+    print(page.next_cursor, page.has_more)
+
+    for post in api.iter_posts("扫雷", max_pages=2):
+        print(post.id, post.title)
+```
+
+关键词须为 1–30 字的非空字符串，仅匹配标题；`%`、`_` 等按字面匹配。
+`iter_posts` 自动沿递减游标拉取更早结果，结束时 `next_cursor` 为 `None`。
+省略 `max_pages` 会迭代到服务端 `hasMore=false`。
+异步请求方法使用 `await`，异步分页使用 `async for post in api.iter_posts(...)`。
+接口只提供正常帖的基本信息，不返回已删除 / 待审帖，也不提供正文或回复内容。
+正文可引导用户访问官方帖子页面 `https://saolei.wang/bbs/{id}`。
 
 ## 录像文件批量下载
 
@@ -160,11 +184,11 @@ python -m twine check dist/*
 
 离线测试使用 HTTPX MockTransport，不需要真实 key，不访问网站。
 设置 `SAOLEI_API_KEY` 后，可运行 `python tools/verify_live.py`：
-最多 10 次只读 API 请求，验证全部接口、玩家筛选、两页分页、最新录像状态和异步访问。CI 不运行真实请求。
+最多 18 次只读 API 请求，验证全部接口、玩家筛选、录像 / 帖子分页、搜索结束游标和异步访问。CI 不运行真实请求。
 增加 `--download-videos` 可同时验证同步 / 异步批量下载，最多再下载 4 个文件。
 这是纯 Python 项目，无 ESLint 或 Cypress 测试。
 
-推送与包版本一致的标签（如 `v0.3.0`）会运行完整 CI，
+推送与包版本一致的标签（如 `v0.4.0`）会运行完整 CI，
 随后将 wheel、sdist、文档压缩包和 `SHA256SUMS` 发布到 GitHub Release。
 
 ## 数据来源与许可

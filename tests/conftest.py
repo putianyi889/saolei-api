@@ -29,3 +29,14 @@ def video_page(payloads):
         return result
 
     return make
+
+
+@pytest.fixture
+def post_page(payloads):
+    def make(cursor=0, next_cursor=None, has_more=False, post_id=24361):
+        result = copy.deepcopy(payloads["post_search"])
+        result.update(cursor=cursor, nextCursor=next_cursor, hasMore=has_more)
+        result["items"][0]["id"] = post_id
+        return result
+
+    return make

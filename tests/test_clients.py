@@ -43,6 +43,10 @@ class Harness:
         result = self.client.iter_videos(**kwargs)
         return [video async for video in result] if self.asynchronous else list(result)
 
+    async def posts(self, keyword, **kwargs):
+        result = self.client.iter_posts(keyword, **kwargs)
+        return [post async for post in result] if self.asynchronous else list(result)
+
 
 @pytest.fixture(params=[False, True], ids=["sync", "async"])
 async def api(request):
@@ -63,6 +67,8 @@ async def api(request):
         ("video_info", {"ids": [1, 2]}),
         ("user_info", {"ids": 1}),
         ("user_list", {"ids": [1, 2]}),
+        ("post_info", {"ids": [1, 2]}),
+        ("post_search", {"keyword": "扫雷"}),
     ],
 )
 async def test_endpoint_contract(api, payloads, endpoint, kwargs):
@@ -76,7 +82,7 @@ async def test_endpoint_contract(api, payloads, endpoint, kwargs):
     assert request.method == "GET"
     assert request.headers["X-Api-Key"] == "sk-test-only"
     assert request.headers["Accept"] == "application/json"
-    assert request.headers["User-Agent"] == "saolei-api/0.3.0"
+    assert request.headers["User-Agent"] == "saolei-api/0.4.0"
     if endpoint == "video_list":
         assert dict(request.url.params) == {
             "cursor": "0",
@@ -85,6 +91,8 @@ async def test_endpoint_contract(api, payloads, endpoint, kwargs):
             "player_id": "1",
             "size": "1000",
         }
+    elif endpoint == "post_search":
+        assert dict(request.url.params) == {"keyword": "扫雷"}
     elif endpoint != "stats":
         assert request.url.params["id"] == ("1" if kwargs["ids"] == 1 else "1,2")
 
@@ -96,7 +104,7 @@ async def test_video_defaults_omit_absent_filters(api, payloads):
 
 
 @pytest.mark.parametrize(
-    "method,limit", [("video_info", 50), ("user_info", 50), ("user_list", 100)]
+    "method,limit", [("video_info", 50), ("user_info", 50), ("user_list", 100), ("post_info", 50)]
 )
 async def test_batch_limits(api, payloads, method, limit):
     api.responses.append(httpx.Response(200, json=payloads[method]))
@@ -120,7 +128,7 @@ async def test_batch_limits(api, payloads, method, limit):
         (1.0, TypeError),
     ],
 )
-@pytest.mark.parametrize("method", ["video_info", "user_info", "user_list"])
+@pytest.mark.parametrize("method", ["video_info", "user_info", "user_list", "post_info"])
 async def test_invalid_ids_never_send_a_request(api, method, ids, error):
     with pytest.raises(error):
         await api.call(method, ids)
@@ -249,6 +257,107 @@ async def test_invalid_player_filter_in_iterator_never_sends(api, player_id, err
     with pytest.raises(error):
         await api.videos(player_id=player_id)
     assert not api.requests
+
+
+@pytest.mark.parametrize("keyword", ["扫雷", "雷" * 30, "%_ &+扫雷", " 扫雷 "])
+async def test_post_search_preserves_keyword_and_explicit_zero_cursor(api, payloads, keyword):
+    api.responses.append(httpx.Response(200, json=payloads["post_search"]))
+    await api.call("post_search", keyword, cursor=0)
+    assert dict(api.requests[0].url.params) == {"keyword": keyword, "cursor": "0"}
+
+
+@pytest.mark.parametrize(
+    "keyword,error",
+    [
+        ("", ValueError),
+        (" \n\t", ValueError),
+        ("雷" * 31, ValueError),
+        (None, TypeError),
+        (1, TypeError),
+        (False, TypeError),
+    ],
+)
+@pytest.mark.parametrize("iterate", [False, True], ids=["page", "iterator"])
+async def test_invalid_post_keyword_never_sends(api, keyword, error, iterate):
+    with pytest.raises(error):
+        if iterate:
+            await api.posts(keyword)
+        else:
+            await api.call("post_search", keyword)
+    assert not api.requests
+
+
+@pytest.mark.parametrize("cursor,error", [(-1, ValueError), (True, TypeError), (1.5, TypeError)])
+async def test_invalid_post_search_cursor_never_sends(api, cursor, error):
+    with pytest.raises(error):
+        await api.call("post_search", "扫雷", cursor=cursor)
+    assert not api.requests
+
+
+@pytest.mark.parametrize("start", [None, 0, 40000])
+async def test_post_pagination_is_lazy_descending_and_preserves_keyword(api, post_page, start):
+    api.responses.extend(
+        [
+            httpx.Response(
+                200, json=post_page(cursor=start or 0, next_cursor=23979, has_more=True)
+            ),
+            httpx.Response(200, json=post_page(cursor=23979, post_id=23000)),
+        ]
+    )
+    generator = api.client.iter_posts("扫雷", cursor=start)
+    assert not api.requests
+    posts = [post async for post in generator] if api.asynchronous else list(generator)
+    assert [post.id for post in posts] == [24361, 23000]
+    first_params = {"keyword": "扫雷"}
+    if start is not None:
+        first_params["cursor"] = str(start)
+    assert dict(api.requests[0].url.params) == first_params
+    assert dict(api.requests[1].url.params) == {"keyword": "扫雷", "cursor": "23979"}
+
+
+@pytest.mark.parametrize("next_value", [None, 0, -1, 23979, 25000])
+async def test_broken_descending_post_cursor_cannot_loop(api, post_page, next_value):
+    api.responses.append(
+        httpx.Response(200, json=post_page(cursor=23979, next_cursor=next_value, has_more=True))
+    )
+    with pytest.raises(ResponseError):
+        await api.posts("扫雷", cursor=23979)
+    assert len(api.requests) == 1
+
+
+async def test_post_cursor_checks_requested_boundary(api, post_page):
+    api.responses.append(httpx.Response(200, json=post_page(next_cursor=100, has_more=True)))
+    with pytest.raises(ResponseError):
+        await api.posts("扫雷", cursor=100)
+
+
+async def test_posts_max_pages(api, post_page):
+    api.responses.append(httpx.Response(200, json=post_page(next_cursor=23979, has_more=True)))
+    assert len(await api.posts("扫雷", max_pages=1)) == 1
+    assert len(api.requests) == 1
+
+
+@pytest.mark.parametrize("max_pages,error", [(0, ValueError), (-1, ValueError), (True, TypeError)])
+async def test_invalid_posts_max_pages_never_sends(api, max_pages, error):
+    with pytest.raises(error):
+        await api.posts("扫雷", max_pages=max_pages)
+    assert not api.requests
+
+
+async def test_empty_post_search_ends_at_null_cursor(api, post_page):
+    payload = post_page()
+    payload["items"] = []
+    api.responses.append(httpx.Response(200, json=payload))
+    assert await api.posts("扫雷") == []
+    assert len(api.requests) == 1
+
+
+async def test_post_search_rate_limit_uses_existing_error(api):
+    api.responses.append(httpx.Response(429, headers={"Retry-After": "5"}))
+    with pytest.raises(RateLimitError) as caught:
+        await api.call("post_search", "扫雷")
+    assert caught.value.retry_after == 5
+    assert len(api.requests) == 1
 
 
 async def test_max_pages(api, video_page):

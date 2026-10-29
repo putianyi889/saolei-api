@@ -1,15 +1,18 @@
-# saolei-api v0.3.0
+# saolei-api v0.4.0
 
-Updates the client to match the official API documentation checked on 2026-10-26.
+Adds the two post endpoints documented by the official API on 2026-10-29.
 
-- `video_list(player_id=...)` and `iter_videos(player_id=...)` support the new positive-integer
-  player filter in both synchronous and asynchronous clients, preserving it across all pages.
-- `Video.status` is now a required typed field inherited by `VideoInfo`.
-  The upstream list includes all review states: 0 (blocked), 10 (pending), and 20 (approved).
-  Applications requiring only approved recordings should filter `video.status == 20`.
-- Updated official fixtures, parameter/status regression tests, documentation, and live verification.
-  The bounded verifier checks player filtering, cursor pagination, and recent recording schemas.
-- Recording URL suffixes and ordered batch file downloads remain available.
+- `post_info(ids)` retrieves public metadata for up to 50 post IDs.
+- `post_search(keyword, cursor=...)` searches titles with a 1–30 character keyword,
+  returning 20 results per page in descending ID order.
+- `iter_posts(keyword, max_pages=...)` lazily follows decreasing cursors and stops at the null end cursor.
+  Malformed/non-decreasing cursors raise `ResponseError` instead of looping.
+- All three methods support synchronous and asynchronous clients and reuse existing throttling,
+  HTTPX connections, argument validation, and errors.
+- Exported `Post`, `PostInfoResponse`, and `PostSearchResponse` models preserve timestamp aliases,
+  board numbers, reply/view counts, and pinned/featured/locked flags.
+- Added official examples, offline regression coverage, documentation, and bounded live post checks.
+  Post bodies and reply contents are outside the public API scope and are not fetched.
 
 Install the wheel attached to this release with `python -m pip install <wheel-url>`.
 The source archive and documentation are included. `SHA256SUMS` covers all release artifacts.

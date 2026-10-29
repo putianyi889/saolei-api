@@ -16,14 +16,19 @@ from ._core import (
     ids_params,
     integer,
     next_cursor,
+    next_post_cursor,
     number,
     parse_response,
+    post_search_params,
     video_params,
 )
 from ._files import VIDEO_FILE_BASE_URL, file_suffixes
 from .exceptions import TransportError
 from .models import (
     Level,
+    Post,
+    PostInfoResponse,
+    PostSearchResponse,
     StatsResponse,
     UserInfoResponse,
     UserListResponse,
@@ -121,6 +126,28 @@ class Client:
 
     def user_list(self, ids: int | Sequence[int]) -> UserListResponse:
         return self._get("user_list", UserListResponse, dict(ids_params(ids, 100)))
+
+    def post_info(self, ids: int | Sequence[int]) -> PostInfoResponse:
+        return self._get("post_info", PostInfoResponse, dict(ids_params(ids, 50)))
+
+    def post_search(self, keyword: str, *, cursor: int | None = None) -> PostSearchResponse:
+        return self._get("post_search", PostSearchResponse, post_search_params(keyword, cursor))
+
+    def iter_posts(
+        self, keyword: str, *, cursor: int | None = None, max_pages: int | None = None
+    ) -> Iterator[Post]:
+        """Search titles lazily from newer to older IDs, at most 20 posts per page."""
+        if max_pages is not None:
+            integer(max_pages, "max_pages", 1)
+        pages = 0
+        while True:
+            page = self.post_search(keyword, cursor=cursor)
+            following = next_post_cursor(page, cursor) if page.has_more else None
+            yield from page.items
+            pages += 1
+            if following is None or (max_pages is not None and pages >= max_pages):
+                return
+            cursor = following
 
     def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
         """Return recording file contents in input order; stop on the first error."""
@@ -254,6 +281,31 @@ class AsyncClient:
 
     async def user_list(self, ids: int | Sequence[int]) -> UserListResponse:
         return await self._get("user_list", UserListResponse, dict(ids_params(ids, 100)))
+
+    async def post_info(self, ids: int | Sequence[int]) -> PostInfoResponse:
+        return await self._get("post_info", PostInfoResponse, dict(ids_params(ids, 50)))
+
+    async def post_search(self, keyword: str, *, cursor: int | None = None) -> PostSearchResponse:
+        return await self._get(
+            "post_search", PostSearchResponse, post_search_params(keyword, cursor)
+        )
+
+    async def iter_posts(
+        self, keyword: str, *, cursor: int | None = None, max_pages: int | None = None
+    ) -> AsyncIterator[Post]:
+        """Iterate title-search results in descending ID order without blocking."""
+        if max_pages is not None:
+            integer(max_pages, "max_pages", 1)
+        pages = 0
+        while True:
+            page = await self.post_search(keyword, cursor=cursor)
+            following = next_post_cursor(page, cursor) if page.has_more else None
+            for post in page.items:
+                yield post
+            pages += 1
+            if following is None or (max_pages is not None and pages >= max_pages):
+                return
+            cursor = following
 
     async def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
         """Download sequentially without blocking the event loop; preserve input order."""

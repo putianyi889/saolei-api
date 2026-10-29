@@ -4,6 +4,8 @@ import pytest
 from pydantic import ValidationError
 
 from saolei_api import (
+    PostInfoResponse,
+    PostSearchResponse,
     StatsResponse,
     UserInfoResponse,
     UserListResponse,
@@ -20,6 +22,8 @@ from saolei_api import (
         ("video_info", VideoInfoResponse),
         ("user_info", UserInfoResponse),
         ("user_list", UserListResponse),
+        ("post_info", PostInfoResponse),
+        ("post_search", PostSearchResponse),
     ],
 )
 def test_official_examples_normalize_and_round_trip(payloads, normalized_payloads, endpoint, model):
@@ -97,9 +101,29 @@ def test_invalid_upstream_file_url(payloads, value):
         ("video_info", VideoInfoResponse, "items"),
         ("user_info", UserInfoResponse, "users"),
         ("user_list", UserListResponse, "users"),
+        ("post_info", PostInfoResponse, "items"),
+        ("post_search", PostSearchResponse, "items"),
     ],
 )
 def test_empty_results_are_valid(payloads, endpoint, model, field):
     payload = copy.deepcopy(payloads[endpoint])
     payload[field] = []
     assert getattr(model.model_validate(payload), field) == []
+
+
+def test_post_timestamps_and_flags(payloads):
+    post = PostInfoResponse.model_validate(payloads["post_info"]).items[0]
+    assert post.id == 362 and post.board == 1
+    assert post.post_time == 1181620008
+    assert post.update_time == 1201508595
+    assert post.last_reply_time == 1637886023
+    assert post.replies == 35 and post.clicks == 187923
+    assert post.nice and not post.pinned and not post.locked
+
+
+def test_post_last_page_null_cursor_and_future_fields(post_page):
+    payload = post_page()
+    payload["items"][0]["futureField"] = "preserved"
+    page = PostSearchResponse.model_validate(payload)
+    assert page.next_cursor is None and not page.has_more
+    assert page.model_dump(by_alias=True) == payload
