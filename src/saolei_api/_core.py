@@ -39,7 +39,7 @@ def headers(api_key: str) -> dict[str, str]:
         raise ValueError(
             "api_key must contain only ASCII characters without whitespace or controls"
         )
-    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.4.0"}
+    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.4.1"}
 
 
 def ids_params(ids: int | Sequence[int], limit: int) -> dict[str, str]:
@@ -113,17 +113,33 @@ def check_status(response: httpx.Response, endpoint: str) -> None:
         raise APIError(status, endpoint)
 
 
+def invalid_locations(exc: ValidationError, limit: int = 6) -> str:
+    """Report schema locations only; response bodies and values stay private."""
+    paths: list[str] = []
+    for error in exc.errors():
+        path = ".".join(str(part) for part in error["loc"]) or "<root>"
+        if path not in paths:
+            paths.append(path)
+    if not paths:
+        return "<unknown>"
+    if len(paths) > limit:
+        return ", ".join(paths[:limit]) + f", +{len(paths) - limit} more"
+    return ", ".join(paths)
+
+
 def parse_response(response: httpx.Response, endpoint: str, model: type[ModelT]) -> ModelT:
     check_status(response, endpoint)
     try:
         return model.model_validate_json(response.content)
-    except ValidationError:
-        raise ResponseError(f"Invalid JSON or response schema for {endpoint}") from None
+    except ValidationError as exc:
+        raise ResponseError(
+            f"Invalid JSON or response schema for {endpoint}: {invalid_locations(exc)}"
+        ) from None
 
 
 def next_cursor(page: VideoListResponse, requested_cursor: int | None) -> int:
     previous = max(page.cursor, requested_cursor if requested_cursor is not None else 0)
-    if page.next_cursor <= previous:
+    if page.next_cursor is None or page.next_cursor <= previous:
         raise ResponseError("video_list returned hasMore=true without an advancing cursor")
     return page.next_cursor
 

@@ -82,7 +82,7 @@ async def test_endpoint_contract(api, payloads, endpoint, kwargs):
     assert request.method == "GET"
     assert request.headers["X-Api-Key"] == "sk-test-only"
     assert request.headers["Accept"] == "application/json"
-    assert request.headers["User-Agent"] == "saolei-api/0.4.0"
+    assert request.headers["User-Agent"] == "saolei-api/0.4.1"
     if endpoint == "video_list":
         assert dict(request.url.params) == {
             "cursor": "0",
@@ -381,6 +381,12 @@ async def test_empty_last_page(api, video_page):
     page["items"] = []
     api.responses.append(httpx.Response(200, json=page))
     assert await api.videos() == []
+
+
+async def test_null_end_cursor_stops_iteration(api, video_page):
+    api.responses.append(httpx.Response(200, json=video_page(next_cursor=None, has_more=False)))
+    assert len(await api.videos()) == 1
+    assert len(api.requests) == 1
 
 
 @pytest.mark.parametrize("value,error", [(0, ValueError), (-1, ValueError), (True, TypeError)])

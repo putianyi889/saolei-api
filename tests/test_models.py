@@ -111,6 +111,20 @@ def test_empty_results_are_valid(payloads, endpoint, model, field):
     assert getattr(model.model_validate(payload), field) == []
 
 
+def test_video_list_null_end_cursor(payloads):
+    payload = copy.deepcopy(payloads["video_list"])
+    payload.update(nextCursor=None, hasMore=False)
+    page = VideoListResponse.model_validate(payload)
+    assert page.next_cursor is None and not page.has_more
+
+
+def test_no_record_flag(payloads):
+    payload = copy.deepcopy(payloads["video_list"])
+    assert VideoListResponse.model_validate(payload).items[0].no_record is False
+    payload["items"][0]["noRecord"] = True
+    assert VideoListResponse.model_validate(payload).items[0].no_record is True
+
+
 def test_post_timestamps_and_flags(payloads):
     post = PostInfoResponse.model_validate(payloads["post_info"]).items[0]
     assert post.id == 362 and post.board == 1

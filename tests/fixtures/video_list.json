@@ -18,6 +18,7 @@
       "board3bv": 4,
       "3bvs": -3604,
       "nf": true,
+      "noRecord": false,
       "software": "Clone",
       "version": "0.97"
     }

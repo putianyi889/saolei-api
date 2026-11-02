@@ -12,13 +12,13 @@ Python 3.11+，包名 `saolei-api`，导入名 `saolei_api`。
 从 [GitHub Release](https://github.com/putianyi889/saolei-api/releases/latest) 安装：
 
 ```sh
-python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.4.0/saolei_api-0.4.0-py3-none-any.whl"
+python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.4.1/saolei_api-0.4.1-py3-none-any.whl"
 ```
 
 也可以从源码安装：
 
 ```sh
-python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.4.0"
+python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.4.1"
 ```
 
 本项目发布到 GitHub Releases，尚未发布到 PyPI。
@@ -157,7 +157,9 @@ for suffix, content in zip(suffixes, files, strict=True):
 
 ## 数据与错误
 
-- 属性使用 snake_case；`3bvs` 对应 `three_bvs`，`board3bv` 对应 `board_3bv`。
+- 属性使用 snake_case；`3bvs` 对应 `three_bvs`，`board3bv` 对应 `board_3bv`，`noRecord` 对应 `no_record`。
+- `no_record` 为 `true` 表示运气盘（上传时 3BV 低于级别下限，成绩不入排行 / 纪录）；上游未返回该字段时为 `False`。
+- `VideoListResponse.next_cursor` 可为 `None`，表示目录或列表已到末页。
 - 保留上游原值：时间戳为 Unix 秒，成绩时间为毫秒，3BVS 为官方整数表示，包含负值标记。
 - `model_dump(by_alias=True)` / `model_dump_json(by_alias=True)` 可恢复官方字段名称；额外字段会保留。
 - 无回放指标时 `metrics` 为 `None`。空结果返回空列表。

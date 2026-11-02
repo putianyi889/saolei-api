@@ -48,6 +48,8 @@ class Video(APIModel):
     nf: bool
     software: str
     version: str
+    # Upstream added this after 0.4.0; older responses omit it, so default to False.
+    no_record: bool = Field(default=False, alias="noRecord")
 
 
 class VideoMetrics(APIModel):
@@ -75,7 +77,8 @@ class VideoInfo(Video):
 
 class VideoListResponse(APIModel):
     cursor: int
-    next_cursor: int
+    # The last page of a catalogue returns a null end cursor.
+    next_cursor: int | None
     has_more: bool
     size: int
     generated_at: int

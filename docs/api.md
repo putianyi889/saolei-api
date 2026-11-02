@@ -57,7 +57,7 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 两者同时提供时，官方定义 `cursor` 优先。
 `iter_videos` 在后续请求中使用服务端 `nextCursor`，去掉 `since`，保留 `player_id`、`level` 和 `size`。
 服务端 `hasMore=false` 或达到 `max_pages` 时结束；停止消费即可停止请求。
-`hasMore=true` 却未推进游标时抛出 `ResponseError`，防止无限循环。
+`hasMore=false` 时 `next_cursor` 为 `None`；`hasMore=true` 却未推进游标时抛出 `ResponseError`，防止无限循环。
 分页不是数据库快照，数据可能在两次调用间改变。
 
 `video_info` 可包含 status=10（待审）和 status=20（已通过）的公开录像；禁用录像不返回。
@@ -106,11 +106,12 @@ for post in api.iter_posts("扫雷", max_pages=2):
 | `3bvsVideoId` | `three_bvs_video_id` | 该成绩关联的录像 ID |
 | `scoresNf` | `scores_nf` | NF 成绩体系 |
 | `status` | `status` | 录像列表 / 详情共有的审核状态整数，0=已屏蔽、10=待审、20=已通过 |
+| `noRecord` | `no_record` | 运气盘标记；上游未返回时为 `False` |
 | `fileUrl` | `file_url` | 录像文件的 `YYYY/MM/DD/filename` 后缀 |
 | `beg3bvs` / `sum3bvs` 等 | `beg_3bvs` / `sum_3bvs` 等 | 玩家简表的 3BVS 成绩 |
 
 - `StatsResponse`：`generated_at`、`stats: SiteStats`、`max_video_id`、`max_user_id`。
-- `VideoListResponse`：`cursor`、`next_cursor`、`has_more`、`size`、`generated_at`、`items: list[Video]`。
+- `VideoListResponse`：`cursor`、`next_cursor: int | None`、`has_more`、`size`、`generated_at`、`items: list[Video]`。
 - `VideoInfoResponse`：`generated_at`、`items: list[VideoInfo]`。
 - `UserInfoResponse`：`generated_at`、`users: list[UserInfo]`。
 - `UserListResponse`：`generated_at`、`users: list[UserSummary]`。
@@ -118,6 +119,7 @@ for post in api.iter_posts("扫雷", max_pages=2):
 - `PostSearchResponse`：`cursor`、`next_cursor: int | None`、`has_more`、`keyword`、`size`、`generated_at`、`items: list[Post]`。
 
 `Video` 和 `VideoInfo` 都包含必需的 `status: int`；未知状态整数也会保留。
+`noRecord` 在 0.4.1 之后加入；上游未返回该字段时模型按 `False` 处理。
 `VideoInfo` 在 `Video` 上增加 `signature`、`metrics`、`file_url`。
 无回放指标时 `metrics=None`；指标中的 `cl`、`cl_left`、`cl_right`、`cl_double`、`ce`、
 `path`、`ioe`、`stnb` 均可为空。`signature` / `file_url` 也接受 `None`。
@@ -199,7 +201,7 @@ files = api.download_videos(suffixes)  # 异步客户端使用 await
 | `RateLimitError(APIError)` | HTTP 429 | `status_code`, `endpoint`, `retry_after` |
 | `APIError` | 其他非 2xx 状态，包括重定向 | `status_code`, `endpoint` |
 | `TransportError` | HTTPX 连接、读取、超时等请求错误 | — |
-| `ResponseError` | 无效 JSON、格式不兼容或不推进的游标 | — |
+| `ResponseError` | 无效 JSON、格式不兼容或不推进的游标 | 消息末尾附带不兼容字段的位置，不含响应正文 |
 
 `retry_after` 可解析 HTTP `Retry-After` 的秒数或日期形式；缺失或不可解析时为 `None`。
 异常消息不包含请求头、服务端响应正文或 key。HTTPX 的自定义日志仍由应用自行配置。
