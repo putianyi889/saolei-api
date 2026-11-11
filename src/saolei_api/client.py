@@ -22,7 +22,7 @@ from ._core import (
     post_search_params,
     video_params,
 )
-from ._files import VideoFile, download_urls, endpoint_name, response_file_name
+from ._files import FileReference, VideoFile, download_urls, endpoint_name, response_file_name
 from .exceptions import TransportError
 from .models import (
     Level,
@@ -149,7 +149,7 @@ class Client:
                 return
             cursor = following
 
-    def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
+    def download_videos(self, suffixes: Sequence[FileReference]) -> list[bytes]:
         """Return recording file contents in input order; stop on the first error."""
         urls = download_urls(suffixes)
         files: list[bytes] = []
@@ -305,7 +305,7 @@ class AsyncClient:
                 return
             cursor = following
 
-    async def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
+    async def download_videos(self, suffixes: Sequence[FileReference]) -> list[bytes]:
         """Download sequentially without blocking the event loop; preserve input order."""
         urls = download_urls(suffixes)
         files: list[bytes] = []

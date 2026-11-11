@@ -76,13 +76,14 @@ async def test_endpoint_contract(api, payloads, endpoint, kwargs):
     result = await api.call(endpoint, **kwargs)
     assert result.generated_at == payloads[endpoint]["generatedAt"]
     if endpoint == "video_info":
-        assert result.items[0].file_url == "https://saolei.wang/video/download/328090"
+        assert result.items[0].file_url is None
+        assert result.items[0].download_reference == "328090"
     request = api.requests[0]
     assert str(request.url).split("?")[0] == f"https://saolei.wang/api/public/v1/{endpoint}"
     assert request.method == "GET"
     assert request.headers["X-Api-Key"] == "sk-test-only"
     assert request.headers["Accept"] == "application/json"
-    assert request.headers["User-Agent"] == "saolei-api/0.4.2"
+    assert request.headers["User-Agent"] == "saolei-api/0.4.3"
     if endpoint == "video_list":
         assert dict(request.url.params) == {
             "cursor": "0",
@@ -495,8 +496,8 @@ async def test_download_videos_from_metadata(api, payloads):
         ]
     )
     result = await api.call("video_info", 328090)
-    assert await api.call("download_videos", [result.items[0].file_url]) == [b"recording"]
-    assert str(api.requests[-1].url) == payloads["video_info"]["items"][0]["fileUrl"]
+    assert await api.call("download_videos", [result.items[0].download_reference]) == [b"recording"]
+    assert str(api.requests[-1].url) == "https://saolei.wang/video/download/328090"
 
 
 async def test_download_videos_from_official_download_url(api):
@@ -519,6 +520,40 @@ async def test_download_videos_without_response_filename(api):
     api.responses.append(httpx.Response(200, content=b"recording"))
     result = await api.call("download_videos", ["https://saolei.wang/video/download/328090"])
     assert result[0].name is None
+
+
+@pytest.mark.parametrize("value", [328090, "328090"])
+async def test_download_videos_from_video_id(api, value):
+    api.responses.append(
+        httpx.Response(
+            200,
+            content=b"recording",
+            headers={"Content-Disposition": 'attachment; filename="328090.avf"'},
+        )
+    )
+    result = await api.call("download_videos", [value])
+    assert result == [b"recording"]
+    assert result[0].name == "328090.avf"
+    assert str(api.requests[0].url) == "https://saolei.wang/video/download/328090"
+
+
+async def test_download_batch_mixes_ids_and_legacy_suffix(api):
+    contents = [b"first", b"second", b"old"]
+    api.responses.extend(httpx.Response(200, content=content) for content in contents)
+    references = [328090, "328091", "2025/07/31/old.avf"]
+    assert await api.call("download_videos", references) == contents
+    assert [str(request.url) for request in api.requests] == [
+        "https://saolei.wang/video/download/328090",
+        "https://saolei.wang/video/download/328091",
+        "https://saolei.wang/videos/2025/07/31/old.avf",
+    ]
+
+
+@pytest.mark.parametrize("value", [0, -1, True, False, 1.5, "0", "-1", "328090x", "٣٢٨٠٩٠", None])
+async def test_invalid_video_id_references_are_rejected_before_network(api, value):
+    with pytest.raises((ValueError, TypeError)):
+        await api.call("download_videos", [value])
+    assert not api.requests
 
 
 async def test_download_batch_mixes_legacy_suffix_and_official_url(api):
@@ -580,7 +615,7 @@ async def test_empty_download_batch(api):
         "2025/07/31/",
         "",
         None,
-        1,
+        True,
     ],
 )
 async def test_whole_download_batch_validated_before_network(api, bad_value):

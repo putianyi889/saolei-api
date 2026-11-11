@@ -47,7 +47,7 @@ async def main(*, download_videos: bool = False) -> None:
         empty = api.post_search("扫雷", cursor=1)
         assert not empty.items and not empty.has_more and empty.next_cursor is None
         if download_videos:
-            references = [item.file_url for item in details.items if item.file_url is not None][:2]
+            references = [item.download_reference for item in details.items][:2]
             assert references and all(not value.startswith("/") for value in references)
             downloaded = api.download_videos(references)
             assert len(downloaded) == len(references) and all(downloaded)

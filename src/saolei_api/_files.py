@@ -13,6 +13,9 @@ OFFICIAL_ORIGIN = "https://saolei.wang"
 VIDEO_FILE_BASE_URL = f"{OFFICIAL_ORIGIN}/videos/"
 VIDEO_DOWNLOAD_BASE_URL = f"{OFFICIAL_ORIGIN}/video/download/"
 
+# The official API no longer returns fileUrl; a video ID is the download reference.
+FileReference = str | int
+
 _SUFFIX_RE = re.compile(r"([0-9]{4})/([0-9]{2})/([0-9]{2})/([A-Za-z0-9][A-Za-z0-9_.-]*)")
 _SEGMENT = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
 _DOWNLOAD_PATH_RE = re.compile(rf"/video/download/{_SEGMENT}(?:/{_SEGMENT})*")
@@ -57,10 +60,28 @@ def normalize_file_url(value: str | None) -> str | None:
     return value
 
 
-def download_url(value: str) -> str:
-    """Resolve a stored reference to an official URL before any request is sent."""
+def video_id_reference(value: FileReference) -> str | None:
+    """Return the canonical ID reference, or None for other reference forms."""
+    if isinstance(value, bool):
+        raise TypeError("file reference must not be a bool")
+    if isinstance(value, int):
+        if value <= 0:
+            raise ValueError("video ID must be positive")
+        return str(value)
     if not isinstance(value, str):
-        raise TypeError("file reference must be a string")
+        raise TypeError("file reference must be a string or integer")
+    if value.isascii() and value.isdecimal() and int(value) > 0:
+        return value
+    return None
+
+
+def download_url(value: FileReference) -> str:
+    """Resolve an ID, legacy suffix or official URL before any request is sent."""
+    id_reference = video_id_reference(value)
+    if id_reference is not None:
+        return f"{VIDEO_DOWNLOAD_BASE_URL}{id_reference}"
+    if not isinstance(value, str):
+        raise TypeError("file reference must be a string or integer")
     parts = urlsplit(value)
     if parts.scheme or parts.netloc:
         if (
@@ -81,10 +102,10 @@ def download_url(value: str) -> str:
     return VIDEO_FILE_BASE_URL + file_suffix(value)
 
 
-def download_urls(values: Sequence[str]) -> list[str]:
+def download_urls(values: Sequence[FileReference]) -> list[str]:
     """Validate the whole batch before any download starts, preserving order."""
     if not isinstance(values, Sequence) or isinstance(values, (str, bytes)):
-        raise TypeError("file references must be a sequence of strings")
+        raise TypeError("file references must be a sequence of strings or integers")
     return [download_url(value) for value in values]
 
 

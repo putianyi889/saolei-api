@@ -1,3 +1,26 @@
+# saolei-api v0.4.3
+
+The official API no longer returns `fileUrl`; the site administrator confirmed that
+a recording's ID is the download reference. This release makes ID-based downloads
+the default while keeping every previously released reference form working.
+
+- `download_videos` accepts positive integer IDs and decimal ID strings, requesting
+  `https://saolei.wang/video/download/{id}` directly. Booleans, zero, negative and
+  non-decimal values are rejected before any request.
+- `VideoInfo.download_reference` returns the non-empty `file_url` when present,
+  otherwise the video ID as a string. Callers no longer need to handle a missing
+  `fileUrl` themselves.
+- `VideoInfo.file_url` stays optional and tolerant, so responses that omit the field
+  do not fail a whole `video_info` batch. Legacy `YYYY/MM/DD/filename` suffixes and
+  absolute official download URLs remain valid references.
+- `VideoFile.name` (from `Content-Disposition`) is the filename source for ID-based
+  downloads, because the download URL no longer contains an extension.
+- Offline fixtures now model a `video_info` response without `fileUrl`; documentation,
+  live verification and the packaged `User-Agent` follow v0.4.3.
+
+Data source: 扫雷网 saolei.wang. Bring your own API key, issued by the site administrator.
+Only the documented public API and its recording files are supported. This is a third-party client.
+
 # saolei-api v0.4.2
 
 Fixes `video_info` batches against the official API's new recording download address

@@ -44,7 +44,7 @@ HTTP 连接由 [HTTPX](https://www.python-httpx.org/) 管理并复用；
 | `post_search(keyword, *, cursor=None)` | 1–30 字非空关键词；`cursor` 为非负整数或 `None` | `PostSearchResponse` |
 | `iter_posts(keyword, *, cursor=None, max_pages=None)` | 同 `post_search`；`max_pages` 为正整数或 `None` | `Iterator[Post]` / `AsyncIterator[Post]` |
 | `iter_videos(*, cursor=None, since=None, level=None, player_id=None, size=200, max_pages=None)` | 同 `video_list`，`max_pages` 为正整数或 `None` | `Iterator[Video]` / `AsyncIterator[Video]` |
-| `download_videos(suffixes)` | 旧后缀或官方 `https://saolei.wang/video/download/{id}` 下载地址的字符串序列 | `list[bytes]` |
+| `download_videos(suffixes)` | 录像 ID、旧后缀或官方 `/video/download/` 地址的字符串 / 正整数序列 | `list[bytes]` |
 
 无效参数在发送请求前抛出 `ValueError` / `TypeError`。布尔值不作为整数 ID 或游标接受。
 批量参数不自动分组或试探缺失 ID，每次方法调用发送一个请求。
@@ -108,7 +108,7 @@ for post in api.iter_posts("扫雷", max_pages=2):
 | `scoresNf` | `scores_nf` | NF 成绩体系 |
 | `status` | `status` | 录像列表 / 详情共有的审核状态整数，0=已屏蔽、10=待审、20=已通过 |
 | `noRecord` | `no_record` | 运气盘标记；上游未返回时为 `False` |
-| `fileUrl` | `file_url` | 旧录像后缀 `YYYY/MM/DD/filename` 或官方 `https://saolei.wang/video/download/{id}` 下载地址 |
+| `fileUrl` | `file_url` | 官方已不再返回；兼容旧录像后缀或 `/video/download/` 地址，缺省为 `None` |
 | `beg3bvs` / `sum3bvs` 等 | `beg_3bvs` / `sum_3bvs` 等 | 玩家简表的 3BVS 成绩 |
 
 - `StatsResponse`：`generated_at`、`stats: SiteStats`、`max_video_id`、`max_user_id`。
@@ -126,14 +126,14 @@ for post in api.iter_posts("扫雷", max_pages=2):
 `path`、`ioe`、`stnb` 均可为空。`signature` / `file_url` 也接受 `None`。
 其他未知指标仍会在模型和 JSON 导出中保留。
 
-自 v0.4.2 起，`file_url` 保存可直接用于 `download_videos` 的官方文件引用：
-旧版 `https://saolei.wang/videos/YYYY/MM/DD/filename` 仍归一化为后缀，
-当前文档的 `https://saolei.wang/video/download/{id}` 则原样保留；
-根相对的 `/video/download/` 地址会补成官方绝对地址。
-省略、空字符串和 `None` 都归一化为 `None`。
-其他无法识别的字符串不会被模型拒绝，而是留待 `download_videos` 严格校验，
-避免一个新地址格式让整批 `video_info` 解析失败。
-`model_dump()`、`model_dump(by_alias=True)` 和 JSON 导出都返回保存的引用。
+自 v0.4.3 起，官方 API 不再返回 `fileUrl`，录像 ID 就是下载引用。
+`VideoInfo.download_reference` 优先返回非空的 `file_url`，否则返回 ID 的十进制字符串，
+可直接传给 `download_videos`。`file_url` 仍兼容旧数据：
+旧版 `https://saolei.wang/videos/YYYY/MM/DD/filename` 归一化为后缀，
+`/video/download/` 地址保留或补成官方绝对地址。
+省略、空字符串和 `None` 都归一化为 `None`；其他无法识别的字符串也不会被模型拒绝，
+而是留待 `download_videos` 严格校验，避免响应格式变化让整批 `video_info` 解析失败。
+`model_dump()`、`model_dump(by_alias=True)` 和 JSON 导出都返回保存的引用，不含 `download_reference`。
 
 `UserInfo.scores` / `scores_nf` 包含 `beg`、`int`、`exp: LevelScore` 和 `sum: TotalScore`。
 `LevelScore` 包含 `time`、`time_video_id`、`three_bvs`、`three_bvs_video_id`；
@@ -170,26 +170,26 @@ json_text = result.model_dump_json(by_alias=True)
 ## 录像文件批量下载
 
 ```python
-references = [
-    "2025/07/31/6d58634fbe0987003dda90f4a68944a7.avf",
-    "https://saolei.wang/video/download/328090",
-]
+references = [328090, "328091", "2025/07/31/6d58634fbe0987003dda90f4a68944a7.avf"]
 files = api.download_videos(references)  # 异步客户端使用 await
 ```
 
-输入必须是字符串序列，不能传单个字符串。每个元素可为旧后缀
-`YYYY/MM/DD/filename`，或官方 `https://saolei.wang/video/download/{id}` 下载地址
-（可额外带文件名段或查询参数）。旧后缀必须包含有效的四位年份、两位月份、两位日期和文件名；
+输入必须是序列，不能传单个字符串。首选引用是正整数录像 ID 或十进制 ID 字符串，
+客户端据此请求 `https://saolei.wang/video/download/{id}`；布尔值、零和负数不接受。
+为兼容已保存的旧数据，元素也可为旧后缀 `YYYY/MM/DD/filename`
+（拼接为 `https://saolei.wang/videos/{后缀}`）或官方
+`https://saolei.wang/video/download/{id}` 下载地址（可带文件名段或查询参数）。
+旧后缀必须包含有效的四位年份、两位月份、两位日期和文件名；
 文件名接受英文字母、数字、下划线、连字符和点，首字符必须为字母或数字。
 官方下载地址只允许 `https`、主机 `saolei.wang`、`/video/download/` 路径和安全的查询字符；
 其他主机、协议、片段、路径跳转、反斜杠和旧 `/videos/` 地址上的查询参数都不接受。
 整批输入在第一个请求前完成校验，避免下载半批后才发现参数错误或把 API key 发往其他主机。
 
-客户端把旧后缀拼接到固定的 `https://saolei.wang/videos/`，新地址直接 GET，
+按 ID 下载时 URL 不含文件名，录像扩展名应读取响应的 `Content-Disposition`。
 复用已有 HTTPX 连接，使用同站点的 API key；不跟随重定向。
 同步返回 `list[bytes]`，异步 `await` 后也返回 `list[bytes]`；每个元素实际是
 `VideoFile`（`bytes` 的子类），当响应带 `Content-Disposition` 时 `file.name`
-为服务器提供的安全文件名，否则为 `None`。需要录像扩展名的调用方应优先读取该属性。
+为服务器提供的安全文件名，否则为 `None`。
 结果按输入顺序排列，保留重复项；空序列不请求网络并返回 `[]`。
 文件全部读入内存，不自动落盘；内存占用随本批文件总大小增长。
 
@@ -232,7 +232,7 @@ except SaoleiError as exc:
 
 官方上限为每合作方 60 次/分钟，建议全量同步低于 30 次/分钟、增量同步每小时一次。
 本包只访问上述 7 个 API 和官方文档提供的录像文件，不使用网页、登录接口或未公开端点。
-`file_url` 引用由 API 提供，`download_videos` 遵守单实例默认下载间隔；全局额度由调用方协调。
+下载引用默认取录像 ID，`download_videos` 遵守单实例默认下载间隔；全局额度由调用方协调。
 引用数据请标注 **扫雷网 saolei.wang**；API key 应通过环境变量或应用秘密管理传入。
 
 离线样本位于 `tests/fixtures/`，来自官方文档示例，数据来源为扫雷网。

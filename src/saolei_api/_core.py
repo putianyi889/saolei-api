@@ -39,7 +39,7 @@ def headers(api_key: str) -> dict[str, str]:
         raise ValueError(
             "api_key must contain only ASCII characters without whitespace or controls"
         )
-    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.4.2"}
+    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.4.3"}
 
 
 def ids_params(ids: int | Sequence[int], limit: int) -> dict[str, str]:

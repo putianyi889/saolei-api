@@ -15,8 +15,10 @@ def payloads():
 
 @pytest.fixture
 def normalized_payloads(payloads):
-    # Legacy /videos/ URLs are normalized separately in test_models.py.
-    return copy.deepcopy(payloads)
+    result = copy.deepcopy(payloads)
+    # model_dump includes the optional fileUrl default even when the response omits it.
+    result["video_info"]["items"][0]["fileUrl"] = None
+    return result
 
 
 @pytest.fixture

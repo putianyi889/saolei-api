@@ -12,13 +12,13 @@ Python 3.11+，包名 `saolei-api`，导入名 `saolei_api`。
 从 [GitHub Release](https://github.com/putianyi889/saolei-api/releases/latest) 安装：
 
 ```sh
-python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.4.2/saolei_api-0.4.2-py3-none-any.whl"
+python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.4.3/saolei_api-0.4.3-py3-none-any.whl"
 ```
 
 也可以从源码安装：
 
 ```sh
-python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.4.2"
+python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.4.3"
 ```
 
 本项目发布到 GitHub Releases，尚未发布到 PyPI。
@@ -44,7 +44,7 @@ with Client(os.environ["SAOLEI_API_KEY"]) as api:
         print(video.id, video.status, video.real_time, video.three_bvs)
 
     detail = api.video_info(328090).items[0]
-    print(detail.file_url)  # https://saolei.wang/video/download/328090
+    print(detail.download_reference)  # '328090'，上游已不再返回 fileUrl
 ```
 
 异步调用：
@@ -126,26 +126,29 @@ with Client(os.environ["SAOLEI_API_KEY"]) as api:
 
 ## 录像文件批量下载
 
-`VideoInfo.file_url` 是官方给出的文件引用，可能为两种形式：
+官方 API 已不再返回 `fileUrl`，录像 ID 就是下载引用：
+`download_videos(["328090"])` 直接请求 `https://saolei.wang/video/download/328090`。
+`VideoInfo.download_reference` 返回 `file_url`（若上游仍给出）或录像 ID 的字符串，
+`file_url` 本身允许缺失、空字符串或 `None`，不会因为响应格式变化使整批详情解析失败。
 
+`download_videos` 同时兼容旧数据，且只在官方 `https://saolei.wang` 的
+`/videos/` 与 `/video/download/` 路径下发出请求：
+
+- 正整数 ID 或十进制 ID 字符串；
 - 旧版 `YYYY/MM/DD/文件名` 后缀（官方 `/videos/` 地址会被归一化成后缀）；
-- 当前文档的 `https://saolei.wang/video/download/{id}` 下载地址，可能带文件名或查询参数。
-
-缺失、空字符串或 `None` 都表示没有文件地址，不会因为地址格式变化使整批详情解析失败。
-`download_videos` 同时接受两种形式，且只在官方 `https://saolei.wang` 的
-`/videos/` 与 `/video/download/` 路径下发出请求。
+- `https://saolei.wang/video/download/{id}` 下载地址，可带文件名或查询参数。
 
 ```python
 with Client(os.environ["SAOLEI_API_KEY"]) as api:
     details = api.video_info([328090, 24])
-    references = [video.file_url for video in details.items if video.file_url is not None]
+    references = [video.download_reference for video in details.items]
     files = api.download_videos(references)  # list[bytes]，与输入顺序一一对应
 ```
 
 也可以直接传入保存过的引用列表。异步版本使用 `files = await api.download_videos(references)`。
 每个元素都是 `bytes` 的子类 `VideoFile`；当下载响应带 `Content-Disposition` 时，
-`file.name` 是服务器提供的安全文件名，否则为 `None`。调用方需要录像扩展名时应优先使用它，
-旧后缀也可从引用末段自行取得。函数不自动写入磁盘；如需保存：
+`file.name` 是服务器提供的安全文件名，否则为 `None`。按 ID 下载时没有内嵌扩展名，
+调用方需要录像扩展名时应读取该属性。函数不自动写入磁盘；如需保存：
 
 ```python
 from pathlib import Path

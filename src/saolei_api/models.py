@@ -64,7 +64,7 @@ class VideoMetrics(APIModel):
 
 
 class VideoInfo(Video):
-    # Upstream may omit these for videos without a file or replay metrics.
+    # The official API no longer returns fileUrl; replay metrics may also be absent.
     signature: str | None = None
     metrics: VideoMetrics | None = None
     file_url: str | None = None
@@ -74,6 +74,11 @@ class VideoInfo(Video):
     def file_url_suffix(cls, value: str | None) -> str | None:
         """Normalize legacy /videos/ URLs; keep other official references as-is."""
         return normalize_file_url(value)
+
+    @property
+    def download_reference(self) -> str:
+        """Use the video ID when upstream does not supply a file reference."""
+        return self.file_url or str(self.id)
 
 
 class VideoListResponse(APIModel):

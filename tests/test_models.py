@@ -48,6 +48,7 @@ def test_future_fields_are_preserved(payloads):
     payload = copy.deepcopy(payloads["video_info"])
     payload["newTopField"] = "future"
     payload["items"][0]["newVideoField"] = 12
+    payload["items"][0]["fileUrl"] = None
     parsed = VideoInfoResponse.model_validate(payload)
     assert parsed.model_dump(by_alias=True) == payload
 
@@ -79,10 +80,20 @@ def test_file_urls_expose_suffix_only(payloads, value):
 @pytest.mark.parametrize("value", [None, ""])
 def test_missing_or_blank_file_url(payloads, value):
     payload = copy.deepcopy(payloads["video_info"])
-    del payload["items"][0]["fileUrl"]
+    item = payload["items"][0]
+    item.pop("fileUrl", None)
     if value == "":
+        item["fileUrl"] = value
+    parsed = VideoInfoResponse.model_validate(payload).items[0]
+    assert parsed.file_url is None
+    assert parsed.download_reference == "328090"
+
+
+def test_download_reference_prefers_file_url(payloads):
+    payload = copy.deepcopy(payloads["video_info"])
+    for value, expected in [("2025/07/31/example.avf", "2025/07/31/example.avf"), (None, "328090")]:
         payload["items"][0]["fileUrl"] = value
-    assert VideoInfoResponse.model_validate(payload).items[0].file_url is None
+        assert VideoInfoResponse.model_validate(payload).items[0].download_reference == expected
 
 
 @pytest.mark.parametrize(
