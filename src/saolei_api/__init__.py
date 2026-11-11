@@ -1,5 +1,6 @@
 """Python interface to the official saolei.wang public API."""
 
+from ._files import VideoFile
 from .client import AsyncClient, Client
 from .exceptions import (
     APIError,
@@ -32,7 +33,7 @@ from .models import (
     VideoMetrics,
 )
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 __all__ = [
     "APIError",
@@ -59,6 +60,7 @@ __all__ = [
     "UserListResponse",
     "UserSummary",
     "Video",
+    "VideoFile",
     "VideoInfo",
     "VideoInfoResponse",
     "VideoListResponse",

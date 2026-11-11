@@ -15,9 +15,8 @@ def payloads():
 
 @pytest.fixture
 def normalized_payloads(payloads):
-    result = copy.deepcopy(payloads)
-    result["video_info"]["items"][0]["fileUrl"] = "2025/07/31/6d58634fbe0987003dda90f4a68944a7.avf"
-    return result
+    # Legacy /videos/ URLs are normalized separately in test_models.py.
+    return copy.deepcopy(payloads)
 
 
 @pytest.fixture

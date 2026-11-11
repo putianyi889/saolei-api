@@ -12,13 +12,13 @@ Python 3.11+，包名 `saolei-api`，导入名 `saolei_api`。
 从 [GitHub Release](https://github.com/putianyi889/saolei-api/releases/latest) 安装：
 
 ```sh
-python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.4.1/saolei_api-0.4.1-py3-none-any.whl"
+python -m pip install "https://github.com/putianyi889/saolei-api/releases/download/v0.4.2/saolei_api-0.4.2-py3-none-any.whl"
 ```
 
 也可以从源码安装：
 
 ```sh
-python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.4.1"
+python -m pip install "git+https://github.com/putianyi889/saolei-api.git@v0.4.2"
 ```
 
 本项目发布到 GitHub Releases，尚未发布到 PyPI。
@@ -44,7 +44,7 @@ with Client(os.environ["SAOLEI_API_KEY"]) as api:
         print(video.id, video.status, video.real_time, video.three_bvs)
 
     detail = api.video_info(328090).items[0]
-    print(detail.file_url)  # 2025/07/31/6d58634fbe0987003dda90f4a68944a7.avf
+    print(detail.file_url)  # https://saolei.wang/video/download/328090
 ```
 
 异步调用：
@@ -126,31 +126,38 @@ with Client(os.environ["SAOLEI_API_KEY"]) as api:
 
 ## 录像文件批量下载
 
-从 v0.2.0 起，`VideoInfo.file_url` 只返回 `YYYY/MM/DD/文件名` 后缀，
-不含域名、`/videos/` 或前导斜杠；JSON 导出的 `fileUrl` 也使用相同后缀。
-`None` 仍表示没有文件地址。
+`VideoInfo.file_url` 是官方给出的文件引用，可能为两种形式：
+
+- 旧版 `YYYY/MM/DD/文件名` 后缀（官方 `/videos/` 地址会被归一化成后缀）；
+- 当前文档的 `https://saolei.wang/video/download/{id}` 下载地址，可能带文件名或查询参数。
+
+缺失、空字符串或 `None` 都表示没有文件地址，不会因为地址格式变化使整批详情解析失败。
+`download_videos` 同时接受两种形式，且只在官方 `https://saolei.wang` 的
+`/videos/` 与 `/video/download/` 路径下发出请求。
 
 ```python
 with Client(os.environ["SAOLEI_API_KEY"]) as api:
     details = api.video_info([328090, 24])
-    suffixes = [video.file_url for video in details.items if video.file_url is not None]
-    files = api.download_videos(suffixes)  # list[bytes]，与输入顺序一一对应
+    references = [video.file_url for video in details.items if video.file_url is not None]
+    files = api.download_videos(references)  # list[bytes]，与输入顺序一一对应
 ```
 
-也可以直接传入保存过的后缀列表。异步版本使用 `files = await api.download_videos(suffixes)`。
-函数返回各文件的二进制内容，不自动写入磁盘；如需保存：
+也可以直接传入保存过的引用列表。异步版本使用 `files = await api.download_videos(references)`。
+每个元素都是 `bytes` 的子类 `VideoFile`；当下载响应带 `Content-Disposition` 时，
+`file.name` 是服务器提供的安全文件名，否则为 `None`。调用方需要录像扩展名时应优先使用它，
+旧后缀也可从引用末段自行取得。函数不自动写入磁盘；如需保存：
 
 ```python
 from pathlib import Path
 
-for suffix, content in zip(suffixes, files, strict=True):
-    target = Path("recordings") / suffix
+for reference, content in zip(references, files, strict=True):
+    name = content.name or reference.rsplit("/", 1)[-1]
+    target = Path("recordings") / name
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(content)
 ```
 
-下载始终限定在官方 `https://saolei.wang/videos/` 下，整批后缀在首个请求前校验。
-按顺序逐个下载，保留重复项；空列表返回空列表。
+整批引用在首个请求前完成校验。按顺序逐个下载，保留重复项；空列表返回空列表。
 下载使用独立的 `download_interval=0.4` 秒节流，同一实例的多次批量调用共用该额度。
 遇到首个 HTTP 或网络错误立即抛出已有异常，不自动重试，也不返回部分结果。
 结果全部保存在内存中，大量文件可由调用方分批获取。

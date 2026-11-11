@@ -12,7 +12,7 @@ from saolei_api import AsyncClient, Client
 async def main(*, download_videos: bool = False) -> None:
     key = os.environ["SAOLEI_API_KEY"]
     downloaded: list[bytes] = []
-    suffixes: list[str] = []
+    references: list[str] = []
     player_id = 1
     with Client(key) as api:
         stats = api.stats()
@@ -47,10 +47,10 @@ async def main(*, download_videos: bool = False) -> None:
         empty = api.post_search("扫雷", cursor=1)
         assert not empty.items and not empty.has_more and empty.next_cursor is None
         if download_videos:
-            suffixes = [item.file_url for item in details.items if item.file_url is not None][:2]
-            assert suffixes and all(not value.startswith("/") for value in suffixes)
-            downloaded = api.download_videos(suffixes)
-            assert len(downloaded) == len(suffixes) and all(downloaded)
+            references = [item.file_url for item in details.items if item.file_url is not None][:2]
+            assert references and all(not value.startswith("/") for value in references)
+            downloaded = api.download_videos(references)
+            assert len(downloaded) == len(references) and all(downloaded)
     async with AsyncClient(key) as api:
         async_stats = await api.stats()
         assert async_stats.max_user_id >= stats.max_user_id
@@ -61,7 +61,7 @@ async def main(*, download_videos: bool = False) -> None:
         async_searched = [post async for post in api.iter_posts("扫雷", max_pages=2)]
         assert async_searched and all(a.id > b.id for a, b in pairwise(async_searched))
         if download_videos:
-            assert await api.download_videos(suffixes) == downloaded
+            assert await api.download_videos(references) == downloaded
     print(
         json.dumps(
             {

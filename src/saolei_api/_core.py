@@ -39,7 +39,7 @@ def headers(api_key: str) -> dict[str, str]:
         raise ValueError(
             "api_key must contain only ASCII characters without whitespace or controls"
         )
-    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.4.1"}
+    return {"X-Api-Key": api_key, "Accept": "application/json", "User-Agent": "saolei-api/0.4.2"}
 
 
 def ids_params(ids: int | Sequence[int], limit: int) -> dict[str, str]:
@@ -114,17 +114,22 @@ def check_status(response: httpx.Response, endpoint: str) -> None:
 
 
 def invalid_locations(exc: ValidationError, limit: int = 6) -> str:
-    """Report schema locations only; response bodies and values stay private."""
+    """Report schema locations and error categories; response values stay private."""
     paths: list[str] = []
+    kinds: list[str] = []
     for error in exc.errors():
         path = ".".join(str(part) for part in error["loc"]) or "<root>"
         if path not in paths:
             paths.append(path)
+        kind = str(error["type"])
+        if kind not in kinds:
+            kinds.append(kind)
     if not paths:
         return "<unknown>"
+    locations = ", ".join(paths[:limit])
     if len(paths) > limit:
-        return ", ".join(paths[:limit]) + f", +{len(paths) - limit} more"
-    return ", ".join(paths)
+        locations += f", +{len(paths) - limit} more"
+    return f"{locations} [{', '.join(kinds)}]"
 
 
 def parse_response(response: httpx.Response, endpoint: str, model: type[ModelT]) -> ModelT:

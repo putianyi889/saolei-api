@@ -1,7 +1,6 @@
 import copy
 
 import pytest
-from pydantic import ValidationError
 
 from saolei_api import (
     PostInfoResponse,
@@ -50,7 +49,6 @@ def test_future_fields_are_preserved(payloads):
     payload["newTopField"] = "future"
     payload["items"][0]["newVideoField"] = 12
     parsed = VideoInfoResponse.model_validate(payload)
-    payload["items"][0]["fileUrl"] = "2025/07/31/6d58634fbe0987003dda90f4a68944a7.avf"
     assert parsed.model_dump(by_alias=True) == payload
 
 
@@ -78,6 +76,34 @@ def test_file_urls_expose_suffix_only(payloads, value):
     assert "https://" not in parsed.model_dump_json()
 
 
+@pytest.mark.parametrize("value", [None, ""])
+def test_missing_or_blank_file_url(payloads, value):
+    payload = copy.deepcopy(payloads["video_info"])
+    del payload["items"][0]["fileUrl"]
+    if value == "":
+        payload["items"][0]["fileUrl"] = value
+    assert VideoInfoResponse.model_validate(payload).items[0].file_url is None
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("https://saolei.wang/video/download/328090", "https://saolei.wang/video/download/328090"),
+        ("/video/download/328090", "https://saolei.wang/video/download/328090"),
+        (
+            "https://saolei.wang/video/download/2025/07/31/example.avf",
+            "https://saolei.wang/video/download/2025/07/31/example.avf",
+        ),
+    ],
+)
+def test_official_download_urls_are_preserved(payloads, value, expected):
+    payload = copy.deepcopy(payloads["video_info"])
+    payload["items"][0]["fileUrl"] = value
+    parsed = VideoInfoResponse.model_validate(payload).items[0]
+    assert parsed.file_url == expected
+    assert parsed.model_dump(by_alias=True)["fileUrl"] == expected
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -87,11 +113,11 @@ def test_file_urls_expose_suffix_only(payloads, value):
         "2025/07/31/example.avf?token=value",
     ],
 )
-def test_invalid_upstream_file_url(payloads, value):
+def test_unrecognized_file_urls_do_not_break_the_batch(payloads, value):
+    """An unfamiliar fileUrl is kept for download-time validation, not rejected here."""
     payload = copy.deepcopy(payloads["video_info"])
     payload["items"][0]["fileUrl"] = value
-    with pytest.raises(ValidationError):
-        VideoInfoResponse.model_validate(payload)
+    assert VideoInfoResponse.model_validate(payload).items[0].file_url == value
 
 
 @pytest.mark.parametrize(

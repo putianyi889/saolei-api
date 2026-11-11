@@ -1,3 +1,31 @@
+# saolei-api v0.4.2
+
+Fixes `video_info` batches against the official API's new recording download address
+(checked 2026-11-11). Since the site switched `fileUrl` from
+`https://saolei.wang/videos/YYYY/MM/DD/filename` to
+`https://saolei.wang/video/download/{id}`, the old strict suffix validator rejected
+every item and a single detail request could fail a whole 50-video batch.
+
+- `VideoInfo.file_url` now preserves the official download address instead of raising
+  a validation error. Legacy `/videos/` URLs are still normalized to
+  `YYYY/MM/DD/filename`, root-relative download addresses are made absolute, and
+  missing, blank or `None` values all mean "no file".
+- `signature`, `metrics` and `file_url` may be omitted by the upstream response and
+  default to `None`.
+- Unrecognized `fileUrl` strings are kept for download-time validation rather than
+  breaking the whole response; `download_videos` stays restricted to official
+  `https://saolei.wang/videos/` and `/video/download/` paths.
+- `download_videos` accepts both legacy suffixes and the new official addresses.
+  Each result is a `bytes` subclass `VideoFile` whose `name` carries the safe
+  `Content-Disposition` filename when the server supplies one, so callers can still
+  choose the correct replay parser.
+- `ResponseError` schema messages now also list the Pydantic error categories
+  (for example `missing` or `value_error`) without exposing response values.
+- Documentation, fixtures, release tooling and the packaged `User-Agent` follow v0.4.2.
+
+Data source: 扫雷网 saolei.wang. Bring your own API key, issued by the site administrator.
+Only the documented public API and its recording files are supported. This is a third-party client.
+
 # saolei-api v0.4.1
 
 Fixes catalogue sync against the current official API (checked 2026-11-02).

@@ -22,7 +22,7 @@ from ._core import (
     post_search_params,
     video_params,
 )
-from ._files import VIDEO_FILE_BASE_URL, file_suffixes
+from ._files import VideoFile, download_urls, endpoint_name, response_file_name
 from .exceptions import TransportError
 from .models import (
     Level,
@@ -151,19 +151,17 @@ class Client:
 
     def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
         """Return recording file contents in input order; stop on the first error."""
-        paths = file_suffixes(suffixes)
+        urls = download_urls(suffixes)
         files: list[bytes] = []
-        for suffix in paths:
+        for url in urls:
             self._wait(download=True)
-            endpoint = f"videos/{suffix}"
+            endpoint = endpoint_name(url)
             try:
-                response = self._http.get(
-                    f"{VIDEO_FILE_BASE_URL}{suffix}", headers={"Accept": "application/octet-stream"}
-                )
+                response = self._http.get(url, headers={"Accept": "application/octet-stream"})
             except httpx.RequestError:
                 raise TransportError(f"Request failed for {endpoint}") from None
             check_status(response, endpoint)
-            files.append(response.content)
+            files.append(VideoFile(response.content, response_file_name(response.headers)))
         return files
 
     def iter_videos(
@@ -309,19 +307,17 @@ class AsyncClient:
 
     async def download_videos(self, suffixes: Sequence[str]) -> list[bytes]:
         """Download sequentially without blocking the event loop; preserve input order."""
-        paths = file_suffixes(suffixes)
+        urls = download_urls(suffixes)
         files: list[bytes] = []
-        for suffix in paths:
+        for url in urls:
             await self._wait(download=True)
-            endpoint = f"videos/{suffix}"
+            endpoint = endpoint_name(url)
             try:
-                response = await self._http.get(
-                    f"{VIDEO_FILE_BASE_URL}{suffix}", headers={"Accept": "application/octet-stream"}
-                )
+                response = await self._http.get(url, headers={"Accept": "application/octet-stream"})
             except httpx.RequestError:
                 raise TransportError(f"Request failed for {endpoint}") from None
             check_status(response, endpoint)
-            files.append(response.content)
+            files.append(VideoFile(response.content, response_file_name(response.headers)))
         return files
 
     async def iter_videos(

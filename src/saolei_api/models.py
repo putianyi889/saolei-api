@@ -64,14 +64,15 @@ class VideoMetrics(APIModel):
 
 
 class VideoInfo(Video):
-    signature: str | None
-    metrics: VideoMetrics | None
-    file_url: str | None
+    # Upstream may omit these for videos without a file or replay metrics.
+    signature: str | None = None
+    metrics: VideoMetrics | None = None
+    file_url: str | None = None
 
     @field_validator("file_url")
     @classmethod
     def file_url_suffix(cls, value: str | None) -> str | None:
-        """Expose only YYYY/MM/DD/filename, including in model serialization."""
+        """Normalize legacy /videos/ URLs; keep other official references as-is."""
         return normalize_file_url(value)
 
 

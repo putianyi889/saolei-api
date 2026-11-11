@@ -24,3 +24,4 @@ def test_schema_error_reports_field_location():
     message = str(caught.value)
     assert message.startswith("Invalid JSON or response schema for video_list")
     assert "nextCursor" in message
+    assert "[missing" in message
